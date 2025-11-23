@@ -1,0 +1,22 @@
+data/images/
+data/rotulos/
+data/training_runs
+data/videos/
+data/model_weights/
+data/resultados/
+data/vis/
+data/video_frame
+
+notebooks/playground_VC/optuna_trials
+
+figs/*
+
+*.png
+*.tif
+*.tiff
+
+# Ignore all __pycache__ directories
+**/__pycache__/
+.DS_Store
+notebooks/divisao-dados/ideia-divisao-dado.md
+data/metadados/patients_metadata.csv
