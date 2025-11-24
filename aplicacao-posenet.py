@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 from typing import Dict, List, Tuple, Callable
 import argparse
+import warnings
 
 import torch
 import torch.nn as nn
@@ -28,6 +29,8 @@ from src.split_data import split_data_k_fold
 from src.utils import get_corners_from_angle
 from src.target.heatmap import generate_heatmap_from_points
 from src.utils import plot_image_with_mask
+
+warnings.filterwarnings('ignore', category=UserWarning, module='torchvision')
 
 
 # =======================================
@@ -98,6 +101,9 @@ class TrainingConfig:
         batch_size: int = 8,
         epochs: int = 200,
         patience: int = 5,
+        lr_patience: float = 1e-10,
+        scheduler = None,
+        criterion_heatmap = nn.MSELoss(),
         checkpoint_dir: str = "./checkpoints/posenet",
         device: str = "cuda"
     ):
@@ -105,6 +111,9 @@ class TrainingConfig:
         self.batch_size = batch_size
         self.epochs = epochs
         self.patience = patience
+        self.lr_patience = lr_patience
+        self.scheduler = scheduler
+        self.criterion_heatmap = criterion_heatmap
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.device = device
@@ -170,6 +179,50 @@ class CheckpointManager:
 # CALCULADOR DA LOSS
 # =======================================
 
+class FocalMSELoss(nn.Module):
+    def __init__(self, alpha=2.0, gamma=2.0):
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+
+    def forward(self, pred, target):
+        # L2 básico
+        mse = (pred - target) ** 2
+        
+        # fator de foco baseado na região do pico
+        focal_weight = 1 + self.alpha * (target ** self.gamma)
+        
+        # aplica foco
+        loss = focal_weight * mse
+        
+        return loss.mean()
+
+class FocalMSEMaskedLoss(nn.Module):
+    def __init__(self, alpha=2.0, gamma=2.0, threshold=1e-3):
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.threshold = threshold
+
+    def forward(self, pred, target):
+        # L2 básico
+        mse = (pred - target) ** 2
+        
+        # Focal: dá mais peso onde o GT é alto
+        focal_weight = 1 + self.alpha * (target ** self.gamma)
+        focal_mse = focal_weight * mse
+        
+        # MÁSCARA: só considera o que é relevante
+        mask = (target > self.threshold).float()
+        
+        # Aplica máscara e evita divisões por zero
+        masked_loss = (focal_mse * mask)
+        
+        if mask.sum() == 0:
+            return focal_mse.mean()   # fallback
+            
+        return masked_loss.sum() / mask.sum()
+    
 class LossCalculator:
     """Centraliza o cálculo de perdas"""
     def __init__(self, criterion_heatmap, config: TrainingConfig):
@@ -199,38 +252,82 @@ def train_one_epoch(
     optimizer: optim.Optimizer,
     device: str,
     modify_input_fn: Callable,
-    accumulation_steps: int = 4  # Novo parâmetro
+    accumulation_steps: int = 2,
+    scaler: torch.cuda.amp.GradScaler = None
 ) -> Tuple[float, Dict]:
+    
     """Treina uma época com gradient accumulation"""
+
     model.train()
     running_loss = 0.0
     loss_components = {'heatmap': 0.0}
+
+    # Zero grad no início
+    optimizer.zero_grad()
     
     for batch_idx, (inputs, targets, _) in enumerate(tqdm(train_loader, desc="Treinando")):
-        inputs = modify_input_fn(inputs).to(device)
-        gt_heatmap = targets['heatmap'].to(device)
         
-        pred_heatmap = model(inputs)
+        # Mover para GPU
+        inputs = inputs.to(device, non_blocking=True)
+        inputs = modify_input_fn(inputs)
+        gt_heatmap = targets['heatmap'].to(device, non_blocking=True)
         
-        loss_total, components = loss_calculator.calculate_loss(
-           pred_heatmap, gt_heatmap
-        )
+        # Forward pass com ou sem mixed precision
+        if scaler is not None:
+            with torch.cuda.amp.autocast():
+                pred_heatmap = model(inputs)
+                loss_total, components = loss_calculator.calculate_loss(
+                    pred_heatmap, gt_heatmap
+                )
+            
+            # Dividir loss pela acumulação
+            loss_scaled = loss_total / accumulation_steps
+            
+            # Backward com scaler
+            scaler.scale(loss_scaled).backward()
         
-        # Normaliza a loss pelo número de acumulações
-        loss_total = loss_total / accumulation_steps
-        loss_total.backward()
+        else:
+            pred_heatmap = model(inputs)
+            loss_total, components = loss_calculator.calculate_loss(
+                pred_heatmap, gt_heatmap
+            )
+            
+            loss_scaled = loss_total / accumulation_steps
+            loss_scaled.backward()
         
-        optimizer.step()
+        # Acumular stats (usar loss ORIGINAL, não scaled)
+        running_loss += loss_total.item()
+        for key in components:
+            if key in loss_components:
+                loss_components[key] += components[key]
+            else:
+                loss_components[key] = components[key]
         
-        running_loss += loss_total.item() * accumulation_steps
-        for key in loss_components:
-            loss_components[key] += components[key]
-
-        # Libera memória explicitamente
-        del inputs, gt_heatmap, pred_heatmap, loss_total
-        torch.cuda.empty_cache()  # Use com moderação!
+        # Atualizar pesos a cada N steps
+        if (batch_idx + 1) % accumulation_steps == 0:
+            if scaler is not None:
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                optimizer.step()
+            
+            optimizer.zero_grad()
     
+    # Apenas se houver gradientes não processados - últimos gradientes calculados
+    if len(train_loader) % accumulation_steps != 0:
+        if scaler is not None:
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            optimizer.step()
+        
+        optimizer.zero_grad()
+    
+    # Calcular médias (proteger contra divisão por zero)
     n_batches = len(train_loader)
+    if n_batches == 0:
+        return 0.0, loss_components
+    
     avg_loss = running_loss / n_batches
     avg_components = {k: v / n_batches for k, v in loss_components.items()}
     
@@ -254,7 +351,10 @@ def validate(
     
     with torch.no_grad():
         for inputs, targets, _ in val_loader:
-            inputs = modify_input_fn(inputs).to(device)
+
+            # Manda pra GPU
+            inputs = inputs.to(device, non_blocking=True)
+            inputs = modify_input_fn(inputs)
             gt_heatmap = targets['heatmap'].to(device)
             
             pred_heatmap = model(inputs)
@@ -290,10 +390,15 @@ def train_one_fold(
     model.to(config.device)
     
     # Configuração
-    criterion_heatmap = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
+    scheduler = config.scheduler(
+        optimizer,
+        mode="min",
+        factor=0.1,
+        patience=config.patience // 3,  # Quando ver que o negócio tá ficando esquisito, mexe.
+    )
     
-    loss_calculator = LossCalculator(criterion_heatmap, config)
+    loss_calculator = LossCalculator(config.criterion_heatmap, config)
     checkpoint_manager = CheckpointManager(config.checkpoint_dir, fold)
     
     # Tracking
@@ -302,15 +407,23 @@ def train_one_fold(
     history = []
     
     for epoch in range(config.epochs):
+
+        scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() else None
+
         # Treino
         train_loss, train_components = train_one_epoch(
-            model, train_loader, loss_calculator, optimizer, config.device, modify_input_fn
+            model, train_loader, loss_calculator, optimizer,
+            config.device, modify_input_fn, scaler = scaler
         )
         
         # Validação
         val_loss, val_components = validate(
-            model, val_loader, loss_calculator, config.device, modify_input_fn
+            model, val_loader, loss_calculator, config.device,
+            modify_input_fn
         )
+
+        # Scheduler
+        scheduler.step(val_loss)
         
         # Logging
         epoch_info = {
@@ -318,7 +431,8 @@ def train_one_fold(
             'train_loss': train_loss,
             'val_loss': val_loss,
             'train_components': train_components,
-            'val_components': val_components
+            'val_components': val_components,
+            'lr': optimizer.param_groups[0]['lr']
         }
         history.append(epoch_info)
         
@@ -326,6 +440,11 @@ def train_one_fold(
         print(f"  Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
         print(f"  Heatmap: {val_components['heatmap']:.4f}, ")
         
+        # Scheduler Early Stopping (Learning Rate)
+        if optimizer.param_groups[0]["lr"] <= config.lr_patience:
+            print("LR mínima atingida, parando.")
+            break
+
         # Checkpoint e Early Stopping
         is_best = val_loss < best_val_loss
         checkpoint_manager.save_checkpoint(
@@ -386,10 +505,12 @@ def cross_validate(
         val_set = dataset_class(df_val, target, output_dim, sigma = sigma)
         
         train_loader = DataLoader(
-            train_set, batch_size=config.batch_size, shuffle=True, collate_fn=collate_fn
+            train_set, batch_size=config.batch_size, shuffle=True,
+            collate_fn=collate_fn, num_workers=0, pin_memory=True#, persistent_workers=True
         )
         val_loader = DataLoader(
-            val_set, batch_size=config.batch_size, shuffle=False, collate_fn=collate_fn
+            val_set, batch_size=config.batch_size, shuffle=False,
+            collate_fn=collate_fn, num_workers=0, pin_memory=True#, persistent_workers=True
         )
         
         # Novo modelo para cada fold
@@ -403,7 +524,7 @@ def cross_validate(
         # Validação final
         final_val_loss, _ = validate(
             model, val_loader, 
-            LossCalculator(nn.MSELoss(), config),
+            LossCalculator(config.criterion_heatmap, config),
             config.device, modify_input_fn
         )
         
@@ -886,7 +1007,7 @@ def evaluate_model_on_test(
     
     # Avalia conjunto de teste
     loss_calculator = LossCalculator(
-        criterion_heatmap=nn.MSELoss(),
+        criterion_heatmap=config.criterion_heatmap,
         config=config
     )
     
@@ -968,14 +1089,32 @@ if __name__ == "__main__":
     # APLICAÇÃO - INICIALIZAÇÃO
     # ======================================= 
 
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    print("\n" + "="*50)
+    print("VERIFICAÇÃO DE GPU")
+    print("="*50)
+    print(f"PyTorch version: {torch.__version__}")
+    print(f"CUDA disponível: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"CUDA version: {torch.version.cuda}")
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"Número de GPUs: {torch.cuda.device_count()}")
+    else:
+        print("❌ CUDA NÃO DISPONÍVEL - USANDO CPU!")
+    print("="*50 + "\n")
+
     # Configuração
     config = TrainingConfig(
         learning_rate=3e-4,
         batch_size=8,
         epochs=args.epochs_cv,
         patience=10,
-        checkpoint_dir="../../data/model_weights/posenet",
-        device="cuda" if torch.cuda.is_available() else "cpu"
+        lr_patience = 1e-10,
+        criterion_heatmap= FocalMSEMaskedLoss(),
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau,
+        checkpoint_dir="data/model_weights/posenet",
+        device=device
     )
 
     sigma_heatmap = 20 # Tem que mudar dentro das funções também...
@@ -1027,11 +1166,11 @@ if __name__ == "__main__":
             best_config = TrainingConfig(
                 learning_rate=study.best_params['lr'],
                 batch_size=study.best_params['batch_size'],
-                weight_roi=study.best_params['weight_roi'],
-                weight_heatmap=study.best_params['weight_heatmap'],
-                weight_penalty=study.best_params['weight_penalty'],
                 epochs=args.epochs_cv,       # Usar uma epoca maior, visto que é o melhor modelo...
                 patience=10,
+                lr_patience = 1e-10,
+                criterion_heatmap= FocalMSEMaskedLoss(),
+                scheduler = optim.lr_scheduler.ReduceLROnPlateau,
                 checkpoint_dir="data/model_weights/posenet_tuning",
                 device=config.device
             )

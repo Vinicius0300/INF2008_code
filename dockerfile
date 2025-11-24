@@ -12,19 +12,21 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Define o diretório de trabalho com o nome do projeto
-WORKDIR /vfss-data-split
+WORKDIR /INF2008_code
 
 # Copia o arquivo requirements.txt
 COPY requirements.txt .
 
 # Instala as dependências com timeout maior e índice extra para PyTorch CPU
-RUN pip install --no-cache-dir --timeout 1000 --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+RUN pip install --no-cache-dir --timeout 1000 \
+    --extra-index-url https://download.pytorch.org/whl/cu118 \
+    -r requirements.txt
 
 # Copia todo o conteúdo do repositório
 COPY . .
 
 # Define o diretório de trabalho
-WORKDIR /vfss-data-split
+WORKDIR /INF2008_code
 
 # Define variável de ambiente
 ENV PYTHONUNBUFFERED=1

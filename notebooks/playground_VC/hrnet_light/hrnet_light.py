@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-class SimpleHRNet(nn.Module):
+class HRNet(nn.Module):
     """
     HRNet simplificado CORRIGIDO para 2 keypoints
     Mantém 3 resoluções em paralelo: 64×64, 32×32, 16×16
@@ -187,5 +187,8 @@ class SimpleHRNet(nn.Module):
         
         # ============ FINAL LAYER ============
         heatmaps = self.final_layer(x1_final)  # (B, num_keypoints, 64, 64)
-        
+        heatmaps = torch.nn.functional.interpolate(
+            heatmaps, size=(256, 256), mode="bilinear", align_corners=False
+        )
+
         return heatmaps

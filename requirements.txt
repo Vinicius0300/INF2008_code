@@ -10,8 +10,8 @@ opencv-python==4.7.0.72
 Pillow==9.5.0
 
 # Machine Learning e Deep Learning
-torch==2.0.0+cpu
-torchvision==0.15.1+cpu
+torch==2.0.0
+torchvision==0.15.1
 kornia==0.6.12
 scikit-learn==1.2.2
 
