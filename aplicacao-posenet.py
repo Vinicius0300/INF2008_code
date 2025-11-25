@@ -1061,7 +1061,9 @@ def evaluate_model_on_test(
 if __name__ == "__main__":
 
     # Parser de argumentos de linha de comando
-    parser = argparse.ArgumentParser(description='Treinamento UNet com parâmetros configuráveis')
+    parser = argparse.ArgumentParser(description='Treinamento PoseNet com parâmetros configuráveis')
+    parser.add_argument('--name-run', type=str, default='teste',
+                        help='Nome da pasta que serão salvas imagens e pesos')
     parser.add_argument('--training', action='store_true',
                         help='Se usada a tag --training será feito o treinamento')
     parser.add_argument('--tuning', action='store_true',
@@ -1078,6 +1080,7 @@ if __name__ == "__main__":
     print(f"\n{'='*50}")
     print(f"CONFIGURAÇÃO DE TREINAMENTO")
     print(f"{'='*50}")
+    print(f"Nome da Run: {args.name_run}")
     print(f"Realiza Treinamento: {args.training}")
     print(f"Realiza Tuning: {args.tuning}")
     print(f"Épocas Tunagem Optuna: {args.epochs_tuning}")
@@ -1113,7 +1116,7 @@ if __name__ == "__main__":
         lr_patience = 1e-10,
         criterion_heatmap= FocalMSEMaskedLoss(),
         scheduler = optim.lr_scheduler.ReduceLROnPlateau,
-        checkpoint_dir="data/model_weights/posenet",
+        checkpoint_dir=f"data/model_weights/posenet/{args.name_run}",
         device=device
     )
 
@@ -1171,7 +1174,7 @@ if __name__ == "__main__":
                 lr_patience = 1e-10,
                 criterion_heatmap= FocalMSEMaskedLoss(),
                 scheduler = optim.lr_scheduler.ReduceLROnPlateau,
-                checkpoint_dir="data/model_weights/posenet_tuning",
+                checkpoint_dir=f"data/model_weights/posenet_tuning/{args.name_run}",
                 device=config.device
             )
 
@@ -1213,11 +1216,11 @@ if __name__ == "__main__":
         # Carrega melhor modelo de cada fold
         if args.tuning:
             # Tunagem de hiperparâmetros com Optuna
-            checkpoint_path = f"data/model_weights/posenet_tuning/fold_{fold_idx+1}_best.pth"
-            output_dir_vis = f"figs/posenet_tuning/fold{fold_idx+1}"
+            checkpoint_path = f"data/model_weights/posenet_tuning/{args.name_run}/fold_{fold_idx+1}_best.pth"
+            output_dir_vis = f"figs/posenet_tuning/{args.name_run}/fold{fold_idx+1}"
         else:
-            checkpoint_path = f"data/model_weights/posenet/fold_{fold_idx+1}_best.pth"
-            output_dir_vis = f"figs/posenet/fold{fold_idx+1}"
+            checkpoint_path = f"data/model_weights/posenet/{args.name_run}/fold_{fold_idx+1}_best.pth"
+            output_dir_vis = f"figs/posenet/{args.name_run}/fold{fold_idx+1}"
 
         # Cria dataset de teste
         test_dataset = VFSSImageDataset(

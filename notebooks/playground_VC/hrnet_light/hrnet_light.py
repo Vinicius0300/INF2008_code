@@ -82,7 +82,7 @@ class HRNet(nn.Module):
         # ============ FINAL LAYER: Gerar heatmaps ============
         # Usa apenas branch1 (maior resolução) para gerar heatmaps
         self.final_layer = nn.Conv2d(32, num_keypoints, kernel_size=1)
-        
+
         self._init_weights()
     
     def _make_branch(self, in_channels, out_channels, num_blocks):
