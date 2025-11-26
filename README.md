@@ -36,20 +36,7 @@ Repositório para extração e manipulação de metadados de vídeos do INCA, in
        - `anotacoes-tecgraf/CS/1/`
        - `...`
 
-6. Ajuste os parâmetros no notebook `notebooks/extrair-metadados/extrair-metadados-inca.ipynb` conforme necessário, como os diretórios dos vídeos e rótulos. Ou se não rode o script diretamente:
-   ```bash
-   python -m src.data_extraction.video_frame --videos_dir data/videos/ --labels_dir data/rotulos/anotacoes-tecgraf/ --target mask
-   ```
 
-
-## Gerando Metadados de Pacientes
-
-O arquivo `patients_metadata.csv` é gerado através da extração de informações contudos nos _paths_ dos vídeos disponibilizados pelo INCA antes da reindexação. Para facilitar a manipulação dos vídeos eles foram reindexados utilizando DataManager e essa informação ficou armazenada no arquivo `video_dictionary.csv`. Para gerar o arquivo `patients_metadata.csv`, siga os passos abaixo:
-
-1. Adicione o arquivo `video_dictionary.csv` na pasta `data/metadados/`.
-2. Gere o arquivo `patients_metadata.csv` rodando:
-````
-    python -m src.data_extraction.patients
 ````
 
 
