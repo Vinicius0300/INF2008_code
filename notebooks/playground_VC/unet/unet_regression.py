@@ -80,7 +80,7 @@ class UNet(nn.Module):
        #out = self.out(up_4)
        #return out
 
-       roi_map = torch.sigmoid(self.head_roi(up_4))
+       roi_map = self.head_roi(up_4) # torch.sigmoid(self.head_roi(up_4)) # Colocar com sigmoide se usar o BCELoss 
        keypoint_maps = self.head_kp(up_4)
        
        return roi_map, keypoint_maps

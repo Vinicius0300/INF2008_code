@@ -1233,7 +1233,7 @@ if __name__ == '__main__':
         patience=10,
         lr_patience = 1e-10,
         criterion_roi= nn.BCEWithLogitsLoss(),
-        criterion_heatmap= FocalMSEMaskedLoss(),
+        criterion_heatmap= FocalMSELoss(),
         scheduler = optim.lr_scheduler.ReduceLROnPlateau,
         checkpoint_dir=f"data/model_weights/unet/{args.name_run}",
         device=device

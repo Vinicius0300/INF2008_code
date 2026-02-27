@@ -16,7 +16,13 @@ import matplotlib.pyplot as plt
 
 
 class VFSSImageDataset(Dataset):
-    def __init__(self, video_frame_df: pd.DataFrame, target='mask', output_dim=(256, 256), transform=None, target_transform: list=None, sigma: float=10):
+    def __init__(self,
+                 video_frame_df: pd.DataFrame, 
+                 target='mask', 
+                 output_dim=(256, 256), 
+                 transform=None, 
+                 target_transform: list=None, 
+                 sigma: float=10):
         '''
         Dataset para carregar frames de vídeos VFSS e seus respectivos alvos (máscaras, pontos, ROI, mapas de calor).
 

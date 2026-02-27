@@ -2,6 +2,9 @@ import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import kornia
+import torch
+
 
 PROJECT_NAME = "INF2008_code"
 
@@ -84,3 +87,55 @@ def plot_image_with_mask(frame, mask, plot_mask=True, size_inches=8, alpha_mask=
     fig.set_size_inches(size_inches, size_inches)
     ax = ax.axis('off')
     return ax
+
+def clahe(img):
+    img_clahe = kornia.enhance.equalize_clahe(img, clip_limit = 5.0)#, clip_limit=20.0, grid_size=(8, 8))
+    return img_clahe
+
+def modify_input(img):
+    # Padroniza tudo para o formato (batch, filtro, H, W)
+    if (len(img.shape) != 4):
+        img = img.unsqueeze(0) 
+    
+    # Modifica cada uma das imagens
+    list_imgs = []
+    n_batch = img.shape[0]
+    for i in range(n_batch):
+        img_orig = img[i][0] # (filtro, H, W)
+
+        # Aplica CLAHE
+        img_clahe = clahe(img_orig)
+
+        # Aplica Double CLAHE
+        img_double_clahe = clahe(img_clahe)
+
+        # Stack Channels
+        img_channels = torch.stack([img_orig, img_clahe, img_double_clahe])
+
+        # Stack Batch
+        list_imgs.append(img_channels)
+
+    img_new = torch.stack(list_imgs, dim = 0)
+    
+    return img_new
+
+def custom_collate_fn(batch):
+    """
+    batch é uma lista de tuplas: [(frame, target_dict, meta), (frame, target_dict, meta), ...]
+    """
+    frames = torch.stack([item[0] for item in batch])  # Empilha os inputs (frames)
+    
+    # Agrupa os targets por chave
+    target_dicts = [item[1] for item in batch]
+
+    batched_targets = {}
+    for key in target_dicts[0].keys():
+        list_aux = []
+        for td in target_dicts:
+            list_aux.append(td[key])
+        batched_targets[key] = torch.stack(list_aux)
+
+    # Mantém os metadados como lista
+    metas = [item[2] for item in batch]
+
+    return frames, batched_targets, metas
