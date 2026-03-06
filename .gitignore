@@ -1,11 +1,15 @@
-data/images/
-data/rotulos/
-data/training_runs
-data/videos/
+data/video_frame/
+data/frames/
 data/model_weights/
+data/rotulos/
+
+data/images/
+data/training_runs/
+data/videos/
+
 data/resultados/
 data/vis/
-data/video_frame
+
 
 notebooks/playground_VC/optuna_trials
 
@@ -20,3 +24,5 @@ figs/*
 .DS_Store
 notebooks/divisao-dados/ideia-divisao-dado.md
 data/metadados/patients_metadata.csv
+
+.venv/

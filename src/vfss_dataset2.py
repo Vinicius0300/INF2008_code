@@ -11,6 +11,7 @@ import os
 import pandas as pd
 from PIL import Image
 import numpy as np
+import cv2
 
 
 class VFSSImageDataset(Dataset):
@@ -135,8 +136,9 @@ class VFSSImageDataset(Dataset):
 
         # --- Imagem ---
         frame_path = self._resolve_path(root, row.frame_path)
-        image = Image.open(frame_path).convert("RGB")
-        original_dim = (image.height, image.width)  # (H, W)
+        image = cv2.imread(str(frame_path))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        original_dim = image.shape[:2]  # (H, W)
 
         # --- Alvo ---
         target_path = self._resolve_path(root, row.target_dir)
