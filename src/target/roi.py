@@ -23,8 +23,8 @@ def generate_roi_from_points(points, img_height, img_width):
     cy = (y1 + y2) / 2
 
     # Metade das dimensões da ROI
-    half_w = dist 
-    half_h = dist # altura = 2 * dist → metade é dist
+    half_w = dist * 0.7 
+    half_h = dist * 0.7 # altura = 2 * dist → metade é dist
 
     # Coordenadas da ROI
     x_min = int(cx - half_w)

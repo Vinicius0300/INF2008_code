@@ -26,6 +26,7 @@ class VFSSImageDataset(Dataset):
         transform=None,
         target_transform=None,
         sigma: float = 10,
+        augmentation: str = None,
         preload: bool = True,
     ):
         """
@@ -41,6 +42,10 @@ class VFSSImageDataset(Dataset):
             target_transform: Transformação aplicada aos alvos. Se None, aplica
                 T.Resize(output_dim).
             sigma (float): Desvio-padrão da gaussiana usada para gerar heatmaps.
+            augmentation (str): None, offline ou online. O offline gera um banco
+                inteiro de dados maior (tem que salvar em algum lugar) o online
+                utiliza uma augmentation diferente em cada epoch do treinamento 
+                do modelo.
             preload (bool): Se True, carrega todos os itens na RAM durante o
                 __init__. Recomendado para datasets pequenos (< 1k frames).
         """
@@ -49,6 +54,7 @@ class VFSSImageDataset(Dataset):
         self.target_keys = target.split('+')
         self.output_dim = output_dim
         self.sigma = sigma
+        self.augmentation = augmentation
 
         # --- Transformações instanciadas uma única vez ---
         self._to_tensor = T.ToTensor()
