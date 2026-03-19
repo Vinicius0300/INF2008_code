@@ -46,6 +46,7 @@ def get_corners_from_angle(x: float, y: float, w: float, h: float, angle_degrees
     else:
         p1 = corners['top_left']
         p2 = corners['bottom_right']
+        print("ENTREI AQUI")
     
     points = np.array([p1, p2])
     return points
