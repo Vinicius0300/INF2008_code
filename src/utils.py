@@ -1,5 +1,6 @@
 import cv2 as cv
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import kornia
@@ -46,10 +47,34 @@ def get_corners_from_angle(x: float, y: float, w: float, h: float, angle_degrees
     else:
         p1 = corners['top_left']
         p2 = corners['bottom_right']
-        print("ENTREI AQUI")
     
     points = np.array([p1, p2])
     return points
+
+def load_points(path: str, filename: str = 'Results.csv') -> np.ndarray:
+        """Carrega e converte os pontos do arquivo CSV."""
+        full_path = os.path.join(path, filename)
+        if not os.path.exists(full_path):
+            raise FileNotFoundError(f"Arquivo de pontos não encontrado: {full_path}")
+
+        df = pd.read_csv(full_path)
+        if df.empty:
+            raise ValueError(f"Arquivo de pontos vazio: {full_path}")
+
+        row = df.iloc[0]
+        return get_corners_from_angle(
+            row['BX'], row['BY'], row['Width'], row['Height'], row['Angle']
+        )
+
+def resolve_path(root: str, path: str) -> str:
+    clean = path.replace("..\\", "").replace("../", "")
+    return os.path.join(root, clean)
+
+
+#============================================
+# VISUALIZAÇÕES
+#============================================
+
 
 def draw_mask(image, mask, alpha_mask=0.3, color=(0,255,0)):
     '''Overlay a mask on an image with specified color and transparency.'''
@@ -88,6 +113,12 @@ def plot_image_with_mask(frame, mask, plot_mask=True, size_inches=8, alpha_mask=
     fig.set_size_inches(size_inches, size_inches)
     ax = ax.axis('off')
     return ax
+
+
+#============================================
+# USADOS NO TREINAMENTO
+#============================================
+
 
 def clahe(img):
     img_clahe = kornia.enhance.equalize_clahe(img, clip_limit = 5.0)#, clip_limit=20.0, grid_size=(8, 8))

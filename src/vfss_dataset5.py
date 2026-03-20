@@ -1,4 +1,4 @@
-from src.utils import get_corners_from_angle
+from src.utils import load_points, resolve_path
 from src.target.heatmap import generate_heatmap_from_points
 from src.target.roi import generate_roi_from_points
 from src.utils import get_script_relative_path, get_project_root_directory
@@ -24,26 +24,44 @@ class VFSSImageDataset():
                  video_frame_df: pd.DataFrame,
                  output_dim: tuple = (512, 512),
                  transform: A.Compose | None = None,
-                 augmentation: str | None = None,
+                 offline_augmentation: bool = False,
                  sigma: int = 10):
-        
+        '''
+        video_frame_df: dataframe com cada linha indicando aonde encontrar
+                        o frame e os targets
+        output_dim:     Dimensão de output do problema
+        transforma:     Transformação que será aplicada no problema (SOMENTE NOS DADOS DE TREINO)
+        offiline_augmentation: True or False. Caso True espera que o data frame 
+                        enviado tenha uma coluna para o caminho do frame e outra 
+                        coluna com os keypoints já processados. Além disso, 
+                        caso True, não devemos passar transform, visto que isso 
+                        é feita na geração dos dados.
+        sigma:          aplicado na distribuição gaussiana que gera os heatmaps
+        '''
         self.video_frame_df = video_frame_df.reset_index(drop=True).copy()
         self.sigma = sigma
         self.output_dim = output_dim
         self.transform = transform
-        self.augmentation = augmentation
-    
+        self.offline_augmentation = offline_augmentation
+
+
     def __getitem__(self, idx:int):
         row = self.video_frame_df.iloc[idx]
         root = get_project_root_directory()
 
         # Carregamento Dados Imagem Original
-        frame_path = self._resolve_path(root, row.frame_path)
+        frame_path = resolve_path(root, row.frame_path)
         image = cv2.imread(str(frame_path), cv2.IMREAD_GRAYSCALE)
 
-        # Carregando Dados dos Target
-        target_path = self._resolve_path(root, row.target_dir)
-        keypoints = self._load_points(target_path) # [C2, C4]
+        # Carrega pontos pelo dataset com offline augmentation
+        if self.offline_augmentation:
+            keypoints = row.keypoints # [C2, C4]
+
+        # Carrega Pontos pelo dataframe original
+        else:
+            # Carregando Dados dos Target
+            target_path = resolve_path(root, row.target_dir)
+            keypoints = load_points(target_path) # [C2, C4]
 
         # Calculando Transformações
         if self.transform:
@@ -61,27 +79,8 @@ class VFSSImageDataset():
         
         return image, keypoints, heatmaps, roi
     
-    # Coleta Pontos
-    def _load_points(self, path: str, filename: str = 'Results.csv') -> np.ndarray:
-        """Carrega e converte os pontos do arquivo CSV."""
-        full_path = os.path.join(path, filename)
-        if not os.path.exists(full_path):
-            raise FileNotFoundError(f"Arquivo de pontos não encontrado: {full_path}")
 
-        df = pd.read_csv(full_path)
-        if df.empty:
-            raise ValueError(f"Arquivo de pontos vazio: {full_path}")
-
-        row = df.iloc[0]
-        return get_corners_from_angle(
-            row['BX'], row['BY'], row['Width'], row['Height'], row['Angle']
-        )
-
-    # Padroniza caminhos
-    def _resolve_path(self, root: str, path: str) -> str:
-        clean = path.replace("..\\", "").replace("../", "")
-        return os.path.join(root, clean)
-    
+    # Plot de Sample
     def plot_sample(self, idx,
                     display_keypoints = True,
                     display_heatmaps = True,
