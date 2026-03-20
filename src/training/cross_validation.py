@@ -7,22 +7,30 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from typing import Dict, List, Tuple, Callable
 
+import albumentations as A
+
 from src.training.config import TrainingConfig
 from src.training.loss import LossCalculator
 from src.training.validate import validate
 from src.training.train_fold import train_one_fold
+from src.offline_segmentation import generate_offline_dataset
 
 
 def cross_validate(
     model_class,
     folds: List[pd.DataFrame],
     config: TrainingConfig,
-    target: str,
     output_dim: Tuple[int, int],
     modify_input_fn: Callable,
     dataset_class,
+    transform_augmentation: A.Compose | None,
+    transform_train: A.Compose | None,
+    transform_validation: A.Compose | None,
+    
     sigma: float,
     collate_fn: Callable,
+    offline_augmentation: bool = False,
+    augmentation_dir: str = "data/frames_augmentation",
     model_kwargs: Dict = None
 ) -> Dict:
     """Executa validação cruzada K-Fold"""
@@ -44,9 +52,16 @@ def cross_validate(
         # Preparação dos dados
         df_val = folds[i]
         df_train = pd.concat([folds[j] for j in range(k) if j != i], ignore_index=True)
+
+        # Aplicação de Offline Augmentation (Caso Requisitado)
+        if offline_augmentation:
+            df_train = generate_offline_dataset(df_train,
+                                                transform_augmentation,
+                                                save_dir=augmentation_dir,
+                                                n_aug=5)
         
-        train_set = dataset_class(df_train, target, output_dim, sigma = sigma)
-        val_set = dataset_class(df_val, target, output_dim, sigma = sigma)
+        train_set = dataset_class(df_train, output_dim, transform_train, sigma = sigma, offline_augmentation = offline_augmentation)
+        val_set = dataset_class(df_val, output_dim, transform_validation, sigma = sigma, offline_augmentation = False)
         
         train_loader = DataLoader(
             train_set, batch_size=config.batch_size, shuffle=True,

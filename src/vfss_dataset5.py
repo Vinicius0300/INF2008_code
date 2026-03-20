@@ -72,13 +72,21 @@ class VFSSImageDataset():
             image = transformed["image"]
             keypoints = transformed["keypoints"]
 
+        # Garantir que image é um tensor
+        if isinstance(image, np.ndarray):
+            image = torch.from_numpy(image)
+
         # Calcula Heatmap e Roi com base nos Keypoints Transformados
         h, w = self.output_dim    
         roi = generate_roi_from_points(keypoints, h, w)
         heatmaps = generate_heatmap_from_points(keypoints, self.output_dim, self.sigma)
         
+        
         return image, keypoints, heatmaps, roi
     
+    # Retorna o Tamanho da Base considera
+    def __len__(self):
+        return len(self.video_frame_df)
 
     # Plot de Sample
     def plot_sample(self, idx,
@@ -106,8 +114,8 @@ class VFSSImageDataset():
         # Mostra ROI
         if display_roi:
             if isinstance(roi, torch.Tensor):
-                roi = roi.cpu().numpy()
-            plt.contour(roi, colors='lime', linewidths=1) # ROI (contorno verde)
+                roi = roi.squeeze().cpu().numpy()  # (H, W)
+            plt.contour(roi, colors='lime', linewidths=1)
         
         # Mostra Keypoints
         if display_keypoints:       

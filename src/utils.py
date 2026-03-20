@@ -2,12 +2,21 @@ import cv2 as cv
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import random
 import os
 import kornia
 import torch
 
 
 PROJECT_NAME = "INF2008_code"
+
+def set_seed(seed_value=42):
+    random.seed(seed_value)
+    os.environ['PYTHONHASHSEED'] = str(seed_value)
+    np.random.seed(seed_value)
+    torch.manual_seed(seed_value)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed_value)
 
 def get_script_directory() -> str:
     '''Get the directory of the current script.'''
@@ -69,6 +78,20 @@ def load_points(path: str, filename: str = 'Results.csv') -> np.ndarray:
 def resolve_path(root: str, path: str) -> str:
     clean = path.replace("..\\", "").replace("../", "")
     return os.path.join(root, clean)
+
+def avalia_status_GPU():
+    print("\n" + "="*50)
+    print("VERIFICAÇÃO DE GPU")
+    print("="*50)
+    print(f"PyTorch version: {torch.__version__}")
+    print(f"CUDA disponível: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"CUDA version: {torch.version.cuda}")
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"Número de GPUs: {torch.cuda.device_count()}")
+    else:
+        print("❌ CUDA NÃO DISPONÍVEL - USANDO CPU!")
+    print("="*50 + "\n")
 
 
 #============================================

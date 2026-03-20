@@ -1,4 +1,6 @@
 import math
+import numpy as np
+import torch
 from PIL import Image, ImageDraw
 import torchvision.transforms as T
 
@@ -41,5 +43,8 @@ def generate_roi_from_points(points, img_height, img_width):
     roi_mask = Image.new("L", (img_width, img_height), 0)  # fundo preto
     draw = ImageDraw.Draw(roi_mask)
     draw.rectangle([x_min, y_min, x_max, y_max], fill=255)  # ROI branca
+
+    roi_mask = np.array(roi_mask, dtype=np.float32) / 255.0  # [0,1]
+    roi_mask = torch.from_numpy(roi_mask).unsqueeze(0)  # (1, H, W)
 
     return roi_mask

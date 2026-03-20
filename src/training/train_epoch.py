@@ -28,13 +28,13 @@ def train_one_epoch(
     # Zero grad no início
     optimizer.zero_grad()
     
-    for batch_idx, (inputs, targets, _) in enumerate(tqdm(train_loader, desc="Treinando")):
+    for batch_idx, (inputs, keypoints, heatmaps, roi) in enumerate(tqdm(train_loader, desc="Treinando")):
 
         # Mover para GPU
         inputs = inputs.to(device, non_blocking=True)
         inputs = modify_input_fn(inputs)
-        gt_heatmap = targets['heatmap'].to(device, non_blocking=True)
-        gt_roi = targets['roi'].to(device, non_blocking=True)
+        gt_heatmap = heatmaps.to(device, non_blocking=True)
+        gt_roi = roi.to(device, non_blocking=True)
         
         # Forward pass com ou sem mixed precision
         if scaler is not None:
