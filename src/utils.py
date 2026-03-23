@@ -176,21 +176,19 @@ def modify_input(img):
 
 def custom_collate_fn(batch):
     """
-    batch é uma lista de tuplas: [(frame, target_dict, meta), (frame, target_dict, meta), ...]
+    batch: [(frame, pontos, heatmaps, roi), (frame, pontos, heatmaps, roi),...]
     """
-    frames = torch.stack([item[0] for item in batch])  # Empilha os inputs (frames)
-    
-    # Agrupa os targets por chave
-    target_dicts = [item[1] for item in batch]
 
-    batched_targets = {}
-    for key in target_dicts[0].keys():
-        list_aux = []
-        for td in target_dicts:
-            list_aux.append(td[key])
-        batched_targets[key] = torch.stack(list_aux)
+    frames = torch.stack([item[0] for item in batch])
 
-    # Mantém os metadados como lista
-    metas = [item[2] for item in batch]
+    # Pontos → garantir tensor
+    pontos = torch.stack([
+        torch.tensor(item[1], dtype=torch.float32)
+        for item in batch
+    ])
 
-    return frames, batched_targets, metas
+    heatmaps = torch.stack([item[2] for item in batch])
+
+    roi = torch.stack([item[3] for item in batch])
+
+    return frames, pontos, heatmaps, roi
