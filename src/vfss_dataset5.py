@@ -20,6 +20,7 @@ from albumentations.pytorch import ToTensorV2
 # Classe que trabalha com ROI, Heatmaps e Pontos
 class VFSSImageDataset():
 
+    # Incia a classe
     def __init__(self,
                  video_frame_df: pd.DataFrame,
                  output_dim: tuple = (512, 512),
@@ -44,15 +45,17 @@ class VFSSImageDataset():
         self.transform = transform
         self.offline_augmentation = offline_augmentation
 
-
+    # Pega um item
     def __getitem__(self, idx:int):
         row = self.video_frame_df.iloc[idx]
         root = get_project_root_directory()
 
         # Carregamento Dados Imagem Original
         frame_path = resolve_path(root, row.frame_path)
-        image = cv2.imread(str(frame_path), cv2.IMREAD_GRAYSCALE)
-
+        image = np.array(Image.open(frame_path).convert("L"))
+        if image.ndim == 2:
+            image = np.expand_dims(image, axis=-1)
+        
         # Carrega pontos pelo dataset com offline augmentation
         if self.offline_augmentation:
             keypoints = row.keypoints # [C2, C4]
@@ -74,7 +77,7 @@ class VFSSImageDataset():
 
         # Garantir que image é um tensor
         if isinstance(image, np.ndarray):
-            image = torch.from_numpy(image)
+            image = torch.from_numpy(image).permute(2, 0, 1).float()
 
         # Calcula Heatmap e Roi com base nos Keypoints Transformados
         h, w = self.output_dim    
