@@ -136,6 +136,7 @@ def split_data_k_fold(video_frame_df, test_size=0.2, n_folds=5, random_state=42)
         print_split_summary(f'Fold {fold_index+1}', fold, initial_frames_qtt)
     
     split_summary = create_split_summary(video_frame_split)
+    split_summary.to_csv("data/metadados/split_folds_test.csv")
     display(split_summary)
 
     return video_frame_split['folds'], video_frame_split['test']
