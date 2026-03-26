@@ -13,7 +13,7 @@ from src.training.config import TrainingConfig
 from src.training.loss import LossCalculator
 from src.training.validate import validate
 from src.training.train_fold import train_one_fold
-from src.offline_segmentation import generate_offline_dataset
+from src.offline_augmentation import generate_offline_dataset
 
 
 def cross_validate(
@@ -56,7 +56,7 @@ def cross_validate(
         # Aplicação de Offline Augmentation (Caso Requisitado)
         if offline_augmentation:
             df_train = generate_offline_dataset(df_train,
-                                                transform_augmentation,
+                                                transform=transform_augmentation,
                                                 save_dir=augmentation_dir,
                                                 n_aug=5)
         

@@ -53,6 +53,7 @@ class VFSSImageDataset():
         # Carregamento Dados Imagem Original
         frame_path = resolve_path(root, row.frame_path)
         image = np.array(Image.open(frame_path).convert("L"))
+
         if image.ndim == 2:
             image = np.expand_dims(image, axis=-1)
         
@@ -83,8 +84,8 @@ class VFSSImageDataset():
         h, w = self.output_dim    
         roi = generate_roi_from_points(keypoints, h, w)
         heatmaps = generate_heatmap_from_points(keypoints, self.output_dim, self.sigma)
-        
-        
+        image = image.float() / 255.0
+
         return image, keypoints, heatmaps, roi
     
     # Retorna o Tamanho da Base considera

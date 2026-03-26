@@ -19,13 +19,13 @@ def validate(
     loss_components = {'roi': 0.0, 'heatmap': 0.0, 'penalty': 0.0}
     
     with torch.no_grad():
-        for inputs, targets, _ in val_loader:
+        for inputs, keypoints, heatmaps, roi in val_loader:
 
             # Manda pra GPU
             inputs = inputs.to(device, non_blocking=True)
             inputs = modify_input_fn(inputs)
-            gt_heatmap = targets['heatmap'].to(device)
-            gt_roi = targets['roi'].to(device)
+            gt_heatmap = heatmaps.to(device)
+            gt_roi = roi.to(device)
             
             pred_roi, pred_heatmap = model(inputs)
             

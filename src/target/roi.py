@@ -8,8 +8,8 @@ def generate_roi_from_points(points, img_height, img_width):
     """
     Gera bounding box (ROI) com base em dois pontos.
     A ROI terá:
-        - largura = distância entre os pontos
-        - altura  = 2x distância entre os pontos
+        - largura = 2 * 0.7 distância entre os pontos
+        - altura  = 2 * 0.7 distância entre os pontos
     E conterá os dois pontos.
     
     Retorna: (x_min, y_min, x_max, y_max)
