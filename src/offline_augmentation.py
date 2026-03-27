@@ -111,17 +111,19 @@ def generate_offline_dataset(df, transform, save_dir, n_aug=5, debug = False):
     existing_files = set(os.listdir(abs_dir))
     new_rows = []
     
-    # Não existe dado sobre augmentation, precisamos fazer do 0.
-    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
-        futures = [
-             executor.submit(augmentate_single_frame, row, transform, abs_dir, n_aug, root, save_dir, debug) 
-             for _, row in df.iterrows()
-        ]
+    if debug:
+        for _, row in tqdm(df.iterrows(), total=len(df), desc="Processando frames"):
+            new_rows = augmentate_single_frame(row, transform, abs_dir, n_aug, root, save_dir, debug)
         
-        for f in tqdm(futures, desc="Processando em Paralelo"):
-            new_rows.extend(f.result())
-
-    #for _, row in tqdm(df.iterrows(), total=len(df), desc="Processando frames"):
-    #    new_rows = augmentate_single_frame(row, transform, abs_dir, n_aug, root, save_dir, debug)
-
-    return pd.DataFrame(new_rows)
+    else:
+        with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+            futures = [
+                 executor.submit(augmentate_single_frame, row, transform, abs_dir, n_aug, root, save_dir, False) 
+                 for _, row in df.iterrows()
+            ]
+            for f in tqdm(futures, desc="Processando em Paralelo"):
+                new_rows.extend(f.result())
+        
+    dfAug = pd.DataFrame(new_rows)
+    
+    return dfAug
