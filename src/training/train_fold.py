@@ -38,10 +38,10 @@ def train_one_fold(
     best_val_loss = float('inf')
     patience_counter = 0
     history = []
-    
-    for epoch in range(config.epochs):
 
-        scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() else None
+    scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() else None
+
+    for epoch in range(config.epochs):
 
         # Treino
         train_loss, train_components = train_one_epoch(

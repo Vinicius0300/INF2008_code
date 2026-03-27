@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from src.training.config import TrainingConfig
 
@@ -10,16 +11,14 @@ class FocalMSELoss(nn.Module):
         self.gamma = gamma
 
     def forward(self, pred, target):
-        # L2 básico
-        mse = (pred - target) ** 2
+        # F.mse_loss com reduction='none' é mais otimizado na VRAM
+        mse = F.mse_loss(pred, target, reduction='none')
         
-        # fator de foco baseado na região do pico
-        focal_weight = 1 + self.alpha * (target ** self.gamma)
-        
-        # aplica foco
-        loss = focal_weight * mse
-        
-        return loss.mean()
+        # O peso focal só depende do target (que não precisa de gradientes!)
+        with torch.no_grad():
+            focal_weight = 1.0 + self.alpha * (target ** self.gamma)
+            
+        return (focal_weight * mse).mean()
 
 class FocalMSEMaskedLoss(nn.Module):
     def __init__(self, alpha=2.0, gamma=2.0, threshold=1e-3):
@@ -29,23 +28,22 @@ class FocalMSEMaskedLoss(nn.Module):
         self.threshold = threshold
 
     def forward(self, pred, target):
-        # L2 básico
-        mse = (pred - target) ** 2
+        mse = F.mse_loss(pred, target, reduction='none')
         
-        # Focal: dá mais peso onde o GT é alto
-        focal_weight = 1 + self.alpha * (target ** self.gamma)
-        focal_mse = focal_weight * mse
-        
-        # MÁSCARA: só considera o que é relevante
-        mask = (target > self.threshold).float()
-        
-        # Aplica máscara e evita divisões por zero
-        masked_loss = (focal_mse * mask)
-        
-        if mask.sum() == 0:
-            return focal_mse.mean()   # fallback
+        # Isola os cálculos do GT para poupar memória do Backward Pass
+        with torch.no_grad():
+            focal_weight = 1.0 + self.alpha * (target ** self.gamma)
+            mask = (target > self.threshold).float()
+            mask_sum = mask.sum().clamp(min=1.0)
             
-        return masked_loss.sum() / mask.sum()
+        focal_mse = focal_weight * mse
+        masked_loss = focal_mse * mask
+        
+        # Evita torch.where computando os dois galhos inteiros
+        if mask_sum > 1.0: # clamp(min=1) significa que se era 0 virou 1
+            return masked_loss.sum() / mask_sum
+        else:
+            return focal_mse.mean()
     
 class LossCalculator:
     """Centraliza o cálculo de perdas"""
@@ -55,10 +53,14 @@ class LossCalculator:
         self.config = config
     
     def calculate_loss(self, pred_roi, pred_heatmap, gt_roi, gt_heatmap):
-        """Calcula perda combinada"""
         loss_roi = self.criterion_roi(pred_roi, gt_roi)
         loss_heatmap = self.criterion_heatmap(pred_heatmap, gt_heatmap)
-        mask_penalty = torch.mean(pred_heatmap * (1 - gt_roi))
+        
+        # Avisa o PyTorch que (1 - gt_roi) é estático
+        with torch.no_grad():
+            inv_gt_roi = 1.0 - gt_roi
+            
+        mask_penalty = torch.mean(pred_heatmap * inv_gt_roi)
         
         loss_total = (
             self.config.weight_roi * loss_roi +
@@ -67,7 +69,7 @@ class LossCalculator:
         )
         
         return loss_total, {
-            'roi': loss_roi.item(),
-            'heatmap': loss_heatmap.item(),
-            'penalty': mask_penalty.item()
+            'roi': loss_roi,
+            'heatmap': loss_heatmap,
+            'penalty': mask_penalty
         }

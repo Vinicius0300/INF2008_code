@@ -22,11 +22,13 @@ def train_one_epoch(
     """Treina uma época com gradient accumulation"""
 
     model.train()
-    running_loss = 0.0
-    loss_components = {'roi': 0.0, 'heatmap': 0.0, 'penalty': 0.0}
+    running_loss = torch.tensor(0.0, device=device)
+    loss_components = {'roi': torch.tensor(0.0, device=device), 
+                       'heatmap': torch.tensor(0.0, device=device), 
+                       'penalty': torch.tensor(0.0, device=device)}
 
     # Zero grad no início
-    optimizer.zero_grad()
+    optimizer.zero_grad(set_to_none=True)
     
     for batch_idx, (inputs, keypoints, heatmaps, roi) in enumerate(tqdm(train_loader, desc="Treinando")):
 
@@ -60,12 +62,12 @@ def train_one_epoch(
             loss_scaled.backward()
         
         # Acumular stats (usar loss ORIGINAL, não scaled)
-        running_loss += loss_total.item()
+        running_loss += loss_total.detach()
         for key in components:
             if key in loss_components:
-                loss_components[key] += components[key]
+                loss_components[key] += components[key].detach() 
             else:
-                loss_components[key] = components[key]
+                loss_components[key] = components[key].detach()
         
         # Atualizar pesos a cada N steps
         if (batch_idx + 1) % accumulation_steps == 0:
@@ -85,14 +87,14 @@ def train_one_epoch(
         else:
             optimizer.step()
         
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
     
     # Calcular médias (proteger contra divisão por zero)
     n_batches = len(train_loader)
     if n_batches == 0:
-        return 0.0, loss_components
+        return 0.0, {k: 0.0 for k in loss_components.keys()}
     
-    avg_loss = running_loss / n_batches
-    avg_components = {k: v / n_batches for k, v in loss_components.items()}
+    avg_loss = (running_loss / n_batches).item()
+    avg_components = {k: (v / n_batches).item() for k, v in loss_components.items()}
     
     return avg_loss, avg_components

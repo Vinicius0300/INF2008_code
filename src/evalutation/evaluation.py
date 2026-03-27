@@ -71,12 +71,12 @@ class TestEvaluator:
         print(f"\nAvaliando {len(test_dataset)} amostras do conjunto de teste...")
         
         for idx in tqdm(range(len(test_dataset)), desc="Avaliando"):
-            input_img, target, _ = test_dataset[idx]
+            input_img, keypoint, heatmap, roi = test_dataset[idx]
             
             # Preparação
             input_tensor = self.modify_input_fn(input_img).float().to(self.device)
-            gt_roi = target['roi'].float().to(self.device)
-            gt_heatmap = target['heatmap'].float().to(self.device)
+            gt_roi = roi.float().to(self.device)
+            gt_heatmap = heatmap.float().to(self.device)
             
             # Inferência
             with torch.no_grad():

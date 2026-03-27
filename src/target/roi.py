@@ -21,8 +21,8 @@ def generate_roi_from_points(points, img_height, img_width):
     dist = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
     # Centro da bounding box: ponto médio entre p1 e p2
-    cx = (x1 + x2) / 2
-    cy = (y1 + y2) / 2
+    cx = (x1 + x2) / 2.0
+    cy = (y1 + y2) / 2.0
 
     # Metade das dimensões da ROI
     half_w = dist * 0.7 
@@ -40,11 +40,10 @@ def generate_roi_from_points(points, img_height, img_width):
     x_max = min(img_width - 1, x_max)
     y_max = min(img_height - 1, y_max)
 
-    roi_mask = Image.new("L", (img_width, img_height), 0)  # fundo preto
-    draw = ImageDraw.Draw(roi_mask)
-    draw.rectangle([x_min, y_min, x_max, y_max], fill=255)  # ROI branca
-
-    roi_mask = np.array(roi_mask, dtype=np.float32) / 255.0  # [0,1]
-    roi_mask = torch.from_numpy(roi_mask).unsqueeze(0)  # (1, H, W)
+    # Cria a máscara direto no PyTorch (fundo preto)
+    roi_mask = torch.zeros((1, img_height, img_width), dtype=torch.float32)
+    
+    # Pinta a ROI (retângulo branco) apenas indexando a matriz
+    roi_mask[0, y_min:y_max, x_min:x_max] = 1.0
 
     return roi_mask

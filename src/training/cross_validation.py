@@ -2,6 +2,7 @@ import pandas as pd
 import json
 import numpy as np
 import torch
+import os
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -26,7 +27,6 @@ def cross_validate(
     transform_augmentation: A.Compose | None,
     transform_train: A.Compose | None,
     transform_validation: A.Compose | None,
-    
     sigma: float,
     collate_fn: Callable,
     offline_augmentation: bool = False,
@@ -63,13 +63,15 @@ def cross_validate(
         train_set = dataset_class(df_train, output_dim, transform_train, sigma = sigma, offline_augmentation = offline_augmentation)
         val_set = dataset_class(df_val, output_dim, transform_validation, sigma = sigma, offline_augmentation = False)
         
+        num_cores = min(8, os.cpu_count()//4 or 1)
+
         train_loader = DataLoader(
             train_set, batch_size=config.batch_size, shuffle=True,
-            collate_fn=collate_fn, num_workers=0, pin_memory=True#, persistent_workers=True
+            collate_fn=collate_fn, num_workers=num_cores, pin_memory=True, persistent_workers=True
         )
         val_loader = DataLoader(
             val_set, batch_size=config.batch_size, shuffle=False,
-            collate_fn=collate_fn, num_workers=0, pin_memory=True#, persistent_workers=True
+            collate_fn=collate_fn, num_workers=num_cores, pin_memory=True, persistent_workers=True
         )
         
         # Novo modelo para cada fold

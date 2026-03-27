@@ -1,13 +1,3 @@
-from src.utils import load_points, resolve_path
-from src.target.heatmap import generate_heatmap_from_points
-from src.target.roi import generate_roi_from_points
-from src.utils import get_script_relative_path, get_project_root_directory
-
-from torch.utils.data import Dataset
-import torchvision.transforms.functional as TF
-import torchvision.transforms as T
-import torch
-
 import os
 import pandas as pd
 from PIL import Image
@@ -16,6 +6,16 @@ import cv2
 import matplotlib.pyplot as plt
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+
+from torch.utils.data import Dataset
+import torchvision.transforms.functional as TF
+import torchvision.transforms as T
+import torch
+
+from src.utils import load_points
+from src.target.heatmap import generate_heatmap_from_points
+from src.target.roi import generate_roi_from_points
+from src.utils import get_script_relative_path, get_project_root_directory
 
 # Classe que trabalha com ROI, Heatmaps e Pontos
 class VFSSImageDataset():
@@ -39,33 +39,30 @@ class VFSSImageDataset():
                         é feita na geração dos dados.
         sigma:          aplicado na distribuição gaussiana que gera os heatmaps
         '''
+        
         self.video_frame_df = video_frame_df.reset_index(drop=True).copy()
         self.sigma = sigma
         self.output_dim = output_dim
         self.transform = transform
         self.offline_augmentation = offline_augmentation
+        self.video_frame_list = self.video_frame_df.to_dict('records')
 
-    # Pega um item
+    # No seu __getitem__, altere o carregamento inicial para isto:
     def __getitem__(self, idx:int):
-        row = self.video_frame_df.iloc[idx]
-        root = get_project_root_directory()
-
-        # Carregamento Dados Imagem Original
-        frame_path = resolve_path(root, row.frame_path)
-        image = np.array(Image.open(frame_path).convert("L"))
-
-        if image.ndim == 2:
-            image = np.expand_dims(image, axis=-1)
+        row = self.video_frame_list[idx]
         
-        # Carrega pontos pelo dataset com offline augmentation
-        if self.offline_augmentation:
-            keypoints = row.keypoints # [C2, C4]
+        # Como agora é um dicionário, acessamos pelas chaves
+        frame_path = row['frame_path']
+        keypoints = row['keypoints']
 
-        # Carrega Pontos pelo dataframe original
-        else:
-            # Carregando Dados dos Target
-            target_path = resolve_path(root, row.target_dir)
-            keypoints = load_points(target_path) # [C2, C4]
+        # Usando OpenCV direto (MUITO mais rápido para ler do disco)
+        # cv2.IMREAD_GRAYSCALE já carrega em 1 canal
+        image = cv2.imread(frame_path, cv2.IMREAD_GRAYSCALE)
+        
+        if image is None:
+            raise FileNotFoundError(f"Imagem não encontrada: {frame_path}")
+
+        image = np.expand_dims(image, axis=-1) # Adiciona o canal (H, W, 1)
 
         # Calculando Transformações
         if self.transform:
@@ -90,7 +87,7 @@ class VFSSImageDataset():
     
     # Retorna o Tamanho da Base considera
     def __len__(self):
-        return len(self.video_frame_df)
+        return self.video_frame_df.shape[0]
 
     # Plot de Sample
     def plot_sample(self, idx,

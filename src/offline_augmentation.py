@@ -53,17 +53,17 @@ def debug_incorrect_transformed_image(row, image, img_aug, keypoints, kp_aug):
     plt.legend()
     plt.show() # O loop vai pausar aqui até você fechar a janela do gráfico
 
-def augmentate_single_frame(row, transform, abs_dir, n_aug, root, save_dir, debug):
+def augmentate_single_frame(row, transform, abs_dir, n_aug, save_dir, debug):
     
     new_rows = []
 
-    frame_path = resolve_path(root, row.frame_path)
+    frame_path = resolve_path(row.frame_path)
     image = np.array(Image.open(frame_path).convert("L"))
     
     if image.ndim == 2:
         image = np.expand_dims(image, axis=-1)
 
-    keypoints_path = resolve_path(root, row.target_dir)
+    keypoints_path = resolve_path(row.target_dir)
     keypoints = load_points(keypoints_path)
 
     for i in tqdm(range(n_aug), desc="Augmentations", leave=False):
@@ -113,12 +113,12 @@ def generate_offline_dataset(df, transform, save_dir, n_aug=5, debug = False):
     
     if debug:
         for _, row in tqdm(df.iterrows(), total=len(df), desc="Processando frames"):
-            new_rows = augmentate_single_frame(row, transform, abs_dir, n_aug, root, save_dir, debug)
+            new_rows = augmentate_single_frame(row, transform, abs_dir, n_aug, save_dir, debug)
         
     else:
         with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
             futures = [
-                 executor.submit(augmentate_single_frame, row, transform, abs_dir, n_aug, root, save_dir, False) 
+                 executor.submit(augmentate_single_frame, row, transform, abs_dir, n_aug, save_dir, False) 
                  for _, row in df.iterrows()
             ]
             for f in tqdm(futures, desc="Processando em Paralelo"):

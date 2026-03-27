@@ -75,7 +75,15 @@ def load_points(path: str, filename: str = 'Results.csv') -> np.ndarray:
             row['BX'], row['BY'], row['Width'], row['Height'], row['Angle']
         )
 
-def resolve_path(root: str, path: str) -> str:
+
+def resolve_dataframe_path(row:pd.DataFrame):
+    row.video_path = resolve_path(row.video_path)
+    row.frame_path = resolve_path(row.frame_path)
+    row.target_dir = resolve_path(row.target_dir)
+    return row
+
+def resolve_path(path: str) -> str:
+    root = get_project_root_directory()
     clean = path.replace("..\\", "").replace("../", "")
     return os.path.join(root, clean)
 
@@ -148,29 +156,18 @@ def clahe(img):
     return img_clahe
 
 def modify_input(img):
-    # Padroniza tudo para o formato (batch, filtro, H, W)
-    if (len(img.shape) != 4):
+    # Garante o formato (B, C, H, W)
+    if len(img.shape) != 4:
         img = img.unsqueeze(0) 
+      
+    # Aplica CLAHE no batch inteiro
+    img_clahe = kornia.enhance.equalize_clahe(img, clip_limit=5.0)
     
-    # Modifica cada uma das imagens
-    list_imgs = []
-    n_batch = img.shape[0]
-    for i in range(n_batch):
-        img_orig = img[i][0] # (filtro, H, W)
+    # Aplica Double CLAHE no batch inteiro
+    img_double_clahe = kornia.enhance.equalize_clahe(img_clahe, clip_limit=5.0)
 
-        # Aplica CLAHE
-        img_clahe = clahe(img_orig)
-
-        # Aplica Double CLAHE
-        img_double_clahe = clahe(img_clahe)
-
-        # Stack Channels
-        img_channels = torch.stack([img_orig, img_clahe, img_double_clahe])
-
-        # Stack Batch
-        list_imgs.append(img_channels)
-
-    img_new = torch.stack(list_imgs, dim = 0)
+    # Empilha os canais para formar (B, 3, H, W)
+    img_new = torch.cat([img, img_clahe, img_double_clahe], dim=1)
     
     return img_new
 
