@@ -4,6 +4,7 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from concurrent.futures import ProcessPoolExecutor
 
 from src.utils import (
     get_project_root_directory,
@@ -23,7 +24,7 @@ def valid_points(points, img_shape):
             return False
     return True
 
-def debug_transformed_image(row, image, img_aug, keypoints, kp_aug):
+def debug_incorrect_transformed_image(row, image, img_aug, keypoints, kp_aug):
     print(f"\n[DEBUG] Pontos inválidos em: v{row.video_id}_f{row.frame_id} - batch {row.batch}")
     print(f"ROTULADOR: {row.selected_labeler}")
     print(f"Keypoints - Real: {keypoints} | Image Shape - Real: {image.shape}")
@@ -52,6 +53,55 @@ def debug_transformed_image(row, image, img_aug, keypoints, kp_aug):
     plt.legend()
     plt.show() # O loop vai pausar aqui até você fechar a janela do gráfico
 
+def augmentate_single_frame(row, transform, abs_dir, n_aug, root, save_dir, debug):
+    
+    new_rows = []
+
+    frame_path = resolve_path(root, row.frame_path)
+    image = np.array(Image.open(frame_path).convert("L"))
+    
+    if image.ndim == 2:
+        image = np.expand_dims(image, axis=-1)
+
+    keypoints_path = resolve_path(root, row.target_dir)
+    keypoints = load_points(keypoints_path)
+
+    for i in tqdm(range(n_aug), desc="Augmentations", leave=False):
+
+        # Garante que os pontos gerados estejam dentro da imagem
+        redo_transformation = True
+        while redo_transformation:
+            transformed = transform(image=image, keypoints=keypoints)
+            img_aug = transformed["image"]
+            kp_aug = transformed["keypoints"]
+            if valid_points(kp_aug, img_aug.shape):
+                redo_transformation = False
+            else:
+                if debug == True:
+                    debug_incorrect_transformed_image(row, image, img_aug, keypoints, kp_aug)
+
+        img_aug_name = f"v{row.video_id}_f{row.frame_id}_aug{i+1}.png"
+        img_aug_path = os.path.join(save_dir, img_aug_name)
+        img_aug_path_abs = os.path.join(abs_dir, img_aug_name)
+
+        # garante numpy
+        if not isinstance(img_aug, np.ndarray):
+            img_aug = img_aug.cpu().numpy()
+
+        # garante formato (H, W)
+        img_aug = np.squeeze(img_aug)
+
+        # salvar com PIL se ainda não estiver 
+        if not os.path.exists(img_aug_path_abs):
+            Image.fromarray(img_aug.astype("uint8")).save(img_aug_path_abs)
+
+        new_rows.append({
+            "frame_path": img_aug_path,
+            "keypoints": kp_aug
+        })
+    
+    return new_rows
+
 def generate_offline_dataset(df, transform, save_dir, n_aug=5, debug = False):
 
     root = get_project_root_directory()
@@ -62,50 +112,16 @@ def generate_offline_dataset(df, transform, save_dir, n_aug=5, debug = False):
     new_rows = []
     
     # Não existe dado sobre augmentation, precisamos fazer do 0.
-    for _, row in tqdm(df.iterrows(), total=len(df), desc="Processando frames"):
-
-        frame_path = resolve_path(root, row.frame_path)
-        image = np.array(Image.open(frame_path).convert("L"))
+    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+        futures = [
+             executor.submit(augmentate_single_frame, row, transform, abs_dir, n_aug, root, save_dir, debug) 
+             for _, row in df.iterrows()
+        ]
         
-        if image.ndim == 2:
-            image = np.expand_dims(image, axis=-1)
+        for f in tqdm(futures, desc="Processando em Paralelo"):
+            new_rows.extend(f.result())
 
-        keypoints_path = resolve_path(root, row.target_dir)
-        keypoints = load_points(keypoints_path)
-
-        for i in tqdm(range(n_aug), desc="Augmentations", leave=False):
-
-            # Garante que os pontos gerados estejam dentro da imagem
-            redo_transformation = True
-            while redo_transformation:
-                transformed = transform(image=image, keypoints=keypoints)
-                img_aug = transformed["image"]
-                kp_aug = transformed["keypoints"]
-                if valid_points(kp_aug, img_aug.shape):
-                    redo_transformation = False
-                else:
-                    if debug == True:
-                        debug_transformed_image(row, image, img_aug, keypoints, kp_aug)
-
-            img_name = f"v{row.video_id}_f{row.frame_id}_aug{i+1}.png"
-            img_path = os.path.join(save_dir, img_name)
-            img_path_abs = os.path.join(abs_dir, img_name)
-
-            # garante numpy
-            if not isinstance(img_aug, np.ndarray):
-                img_aug = img_aug.cpu().numpy()
-
-            # garante formato (H, W)
-            img_aug = np.squeeze(img_aug)
-
-            # salvar com PIL
-            if img_name not in existing_files:
-                Image.fromarray(img_aug.astype("uint8")).save(img_path_abs)
-                existing_files.add(img_name)
-
-            new_rows.append({
-                "frame_path": img_path,
-                "keypoints": kp_aug
-            })
+    #for _, row in tqdm(df.iterrows(), total=len(df), desc="Processando frames"):
+    #    new_rows = augmentate_single_frame(row, transform, abs_dir, n_aug, root, save_dir, debug)
 
     return pd.DataFrame(new_rows)
