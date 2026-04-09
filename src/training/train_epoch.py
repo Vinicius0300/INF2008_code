@@ -78,7 +78,7 @@ def train_one_epoch(
                 optimizer.step()
             
             optimizer.zero_grad()
-    
+
     # Apenas se houver gradientes não processados - últimos gradientes calculados
     if len(train_loader) % accumulation_steps != 0:
         if scaler is not None:

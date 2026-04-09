@@ -19,9 +19,7 @@ def train_one_fold(
     modify_input_fn: Callable
 ) -> Tuple[nn.Module, List[Dict]]:
     """Treina um fold completo com early stopping e checkpoints"""
-    
-    model.to(config.device)
-    
+
     # Configuração
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
     scheduler = config.scheduler(

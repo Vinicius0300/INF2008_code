@@ -71,6 +71,7 @@ def split_data_k_fold(video_frame_df, test_size=0.2, n_folds=5, random_state=42)
         'video_frame',
         'video_id',
         'frame_id',
+        'keypoints',
         'selected_labeler',
         'paciente_id',
         'momento',

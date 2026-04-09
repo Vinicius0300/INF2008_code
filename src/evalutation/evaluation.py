@@ -117,11 +117,11 @@ class TestEvaluator:
             results['images'].append(input_tensor.squeeze(0).cpu())
         
         # Converte para arrays
-        for k in range(num_keypoints):
-            results['keypoint_distances'][k] = np.array(results['keypoint_distances'][k])
-        results['heatmap_losses'] = np.array(results['heatmap_losses'])
-        results['roi_losses'] = np.array(results['roi_losses'])
-        results['total_losses'] = np.array(results['total_losses'])
+        results['keypoint_distances'] = [np.array(dist) for dist in results['keypoint_distances']]
+        # Usamos list comprehension para garantir .cpu().numpy() em cada tensor da lista
+        results['heatmap_losses'] = np.array([l.detach().cpu().item() if torch.is_tensor(l) else l for l in results['heatmap_losses']])
+        results['roi_losses'] = np.array([l.detach().cpu().item() if torch.is_tensor(l) else l for l in results['roi_losses']])
+        results['total_losses'] = np.array([l.detach().cpu().item() if torch.is_tensor(l) else l for l in results['total_losses']])
         
         return results
     

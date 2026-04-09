@@ -14,6 +14,7 @@ from src.training.config import TrainingConfig
 from src.training.loss import LossCalculator
 from src.training.validate import validate
 from src.training.train_fold import train_one_fold
+from src.models.utils_model import init_weights
 from src.offline_augmentation import generate_offline_dataset
 
 
@@ -60,9 +61,9 @@ def cross_validate(
                                                 save_dir=augmentation_dir,
                                                 n_aug=5)
         
-        train_set = dataset_class(df_train, output_dim, transform_train, sigma = sigma, offline_augmentation = offline_augmentation)
-        val_set = dataset_class(df_val, output_dim, transform_validation, sigma = sigma, offline_augmentation = False)
-        
+        train_set = dataset_class(df_train, output_dim, transform_train, sigma = sigma)
+        val_set = dataset_class(df_val, output_dim, transform_validation, sigma = sigma)
+
         num_cores = min(8, os.cpu_count()//4 or 1)
 
         train_loader = DataLoader(
@@ -76,6 +77,9 @@ def cross_validate(
         
         # Novo modelo para cada fold
         model = model_class(**model_kwargs)
+        model.apply(init_weights)
+        model.to(config.device)
+        print(config.device)
         
         # Treina fold
         model, history = train_one_fold(

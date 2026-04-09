@@ -21,7 +21,7 @@ def validate(
         'heatmap': torch.tensor(0.0, device=device), 
         'penalty': torch.tensor(0.0, device=device)
     }
-    
+
     with torch.no_grad():
         for inputs, keypoints, heatmaps, roi in val_loader:
 
