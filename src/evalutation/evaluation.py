@@ -33,16 +33,35 @@ class TestEvaluator:
         print(f"  Epoch: {checkpoint.get('epoch', 'N/A')}")
         print(f"  Val Loss: {checkpoint.get('val_loss', 'N/A'):.4f}")
     
-    def extract_keypoints_from_heatmap(self, heatmap: torch.Tensor) -> torch.Tensor:
-        """Extrai coordenadas dos keypoints do heatmap"""
+    def extract_keypoints_from_heatmap(self, heatmap: torch.Tensor, roi: torch.Tensor|None = None) -> torch.Tensor:
+        """Extrai coordenadas dos keypoints do heatmap, opcionalmente filtrando por uma ROI"""
         num_keypoints = heatmap.shape[0]
         points = torch.zeros(num_keypoints, 2)
         
+        # Transforma a ROI em binária
+        if roi is not None:
+            mask = (roi > 0).float().squeeze()
+        else:
+            mask = None
+
+        # Calcula os pontos
         for k in range(num_keypoints):
-            heatmap_k = heatmap[k].cpu().numpy()
-            idx = np.unravel_index(np.argmax(heatmap_k), heatmap_k.shape)
+            heatmap_k = heatmap[k] # Mantemos no PyTorch para ser mais rápido
+
+            # Se houver máscara, aplicamos multiplicando ponto a ponto
+            if mask is not None:
+                # Heatmap apenas dentro da ROI. O que está fora vira 0.
+                target_heatmap = heatmap_k * mask.to(heatmap_k.device)
+            else:
+                target_heatmap = heatmap_k
+
+            # Convertendo para numpy apenas para o argmax
+            target_np = target_heatmap.detach().cpu().numpy()
+            
+            # Encontra o índice do valor máximo
+            idx = np.unravel_index(np.argmax(target_np), target_np.shape)
             points[k] = torch.tensor([idx[0], idx[1]])  # (y, x)
-        
+    
         return points
     
     def euclidean_distance(self, point1: torch.Tensor, point2: torch.Tensor) -> float:
@@ -87,7 +106,7 @@ class TestEvaluator:
             
             # Extrai pontos
             gt_points = self.extract_keypoints_from_heatmap(gt_heatmap)
-            pred_points = self.extract_keypoints_from_heatmap(pred_heatmap)
+            pred_points = self.extract_keypoints_from_heatmap(pred_heatmap, pred_roi)
             
             # Calcula distâncias por keypoint
             for k in range(num_keypoints):
@@ -309,15 +328,20 @@ class TestEvaluator:
                 ax_img.axis('off')
                 ax_img.legend(loc='upper right')
                 
-                # Heatmap predito
-                ax_heat = axes[1, col]
+                # Heatmap e ROI predito
+                ax_pred = axes[1, col]
                 pred_heatmap = results['predictions'][idx]['heatmap'][k].numpy()
-                im = ax_heat.imshow(pred_heatmap, cmap='hot')
-                ax_heat.scatter(pred_point[1], pred_point[0], color='cyan', marker='o',
+                pred_roi = results['predictions'][idx]['roi'].squeeze().numpy()
+                ground_truths_roi = results['ground_truths'][idx]['roi'].squeeze().numpy()
+                im = ax_pred.imshow(pred_heatmap, cmap='hot')
+                ax_pred.contour(pred_roi, levels=[0.5], colors='blue', linewidths=4)
+                ax_pred.imshow(np.ma.masked_where(pred_roi < 0.5, pred_roi), 
+                               cmap='Greens', alpha=0.5, vmin=0, vmax=1)               
+                ax_pred.scatter(pred_point[1], pred_point[0], color='cyan', marker='o',
                                s=100, linewidths=2)
-                ax_heat.set_title('Heatmap Predito')
-                ax_heat.axis('off')
-                plt.colorbar(im, ax=ax_heat, fraction=0.046)
+                ax_pred.set_title('Heatmap + ROI Predita')
+                ax_pred.axis('off')
+                plt.colorbar(im, ax=ax_pred, fraction=0.046)
             
             plt.tight_layout()
             

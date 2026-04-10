@@ -112,7 +112,7 @@ def generate_offline_dataset(df, transform, save_dir, n_aug=5, debug = False):
     new_rows = []
     
     if debug:
-        for _, row in tqdm(df.iterrows(), total=len(df), desc="Processando frames"):
+        for _, row in tqdm(df.iterrows(), total=len(df), desc="Offline Augmentation - Processando frames"):
             new_rows = augmentate_single_frame(row, transform, abs_dir, n_aug, save_dir, debug)
         
     else:
@@ -121,7 +121,7 @@ def generate_offline_dataset(df, transform, save_dir, n_aug=5, debug = False):
                  executor.submit(augmentate_single_frame, row, transform, abs_dir, n_aug, save_dir, False) 
                  for _, row in df.iterrows()
             ]
-            for f in tqdm(futures, desc="Processando em Paralelo"):
+            for f in tqdm(futures, desc="Offline Augmentation - Processando em Paralelo"):
                 new_rows.extend(f.result())
         
     dfAug = pd.DataFrame(new_rows)

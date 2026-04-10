@@ -16,8 +16,8 @@ class TrainingConfig:
         criterion_roi=None,       
         criterion_heatmap=None,   
         weight_roi: float = 0.4,
-        weight_heatmap: float = 0.5,
-        weight_penalty: float = 0.1,
+        weight_heatmap: float = 0.4,
+        weight_penalty: float = 0.2,
         checkpoint_dir: str = "./checkpoints/unet",
         device: str = "cuda",
     ):
