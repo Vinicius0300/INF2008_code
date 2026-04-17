@@ -110,4 +110,7 @@ class UNet_ImageNet(nn.Module):
         # Voltando para a resolução original (256x256)
         out = F.interpolate(u4, scale_factor=2, mode='bilinear', align_corners=True)
 
-        return self.head_roi(out), self.head_kp(out)
+        roi = self.head_roi(out)
+        kp = torch.sigmoid(self.head_kp(out))
+
+        return roi, kp

@@ -32,10 +32,10 @@ def holdout(
     
     # Aplicação de Offline Augmentation (Caso Requisitado)
     if config.offline_augmentation:
-        df_train = generate_offline_dataset(df_train,
+        df_train = generate_offline_dataset([df_train],
                                             transform=config.transform_augmentation,
                                             save_dir=config.augmentation_dir,
-                                            n_aug=5)
+                                            n_aug=5)[0]
     
     train_set = config.dataset_class(df_train, config.output_dim, config.transform_train, sigma_heatmap = config.sigma_heatmap)
     val_set = config.dataset_class(df_val, config.output_dim, config.transform_validation, sigma_heatmap = config.sigma_heatmap)

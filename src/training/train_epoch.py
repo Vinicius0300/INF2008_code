@@ -30,7 +30,7 @@ def train_one_epoch(
     # Zero grad no início
     optimizer.zero_grad(set_to_none=True)
     
-    for batch_idx, (inputs, keypoints, heatmaps, roi) in enumerate(tqdm(train_loader, desc="Treinando")):
+    for batch_idx, (inputs, keypoints, heatmaps, roi) in enumerate(tqdm(train_loader, desc="Treinando", mininterval=0.5)):
 
         # Mover para GPU
         inputs = inputs.to(config.device, non_blocking=True)

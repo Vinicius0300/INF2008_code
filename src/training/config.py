@@ -39,6 +39,7 @@ class TrainingConfig:
         offline_augmentation: bool = False,
         transform_augmentation: A.Compose | None = None,
         augmentation_dir: str|bool = False,
+        n_aug: int = 5,
 
         checkpoint_dir: str = "./checkpoints/unet",
         device: str = "cuda",
@@ -74,6 +75,7 @@ class TrainingConfig:
         self.offline_augmentation = offline_augmentation
         self.augmentation_dir = augmentation_dir
         self.transform_augmentation = transform_augmentation
+        self.n_aug = n_aug
 
         # Outros
         self.checkpoint_dir = Path(checkpoint_dir)

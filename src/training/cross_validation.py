@@ -16,24 +16,12 @@ from src.offline_augmentation import generate_offline_dataset
 
 
 def cross_validate(
-    model_class,
     folds: List[pd.DataFrame],
-    config: TrainingConfig,
-    output_dim: Tuple[int, int],
-    modify_input_fn: Callable,
-    dataset_class,
-    transform_augmentation: A.Compose | None,
-    transform_train: A.Compose | None,
-    transform_validation: A.Compose | None,
-    sigma: float,
-    collate_fn: Callable,
-    offline_augmentation: bool = False,
-    augmentation_dir: str = "data/frames_augmentation",
-    model_kwargs: Dict = None
+    config: TrainingConfig
 ) -> Dict:
     """Executa validação cruzada K-Fold"""
     
-    model_kwargs = model_kwargs or {}
+    model_kwargs = config.model_kwargs or {}
     k = len(folds)
     results = {
         'fold_losses': [],
@@ -41,6 +29,13 @@ def cross_validate(
         'best_fold': None,
         'best_loss': float('inf')
     }
+
+    # Aplicação de Offline Augmentation (Caso Requisitado)
+    if config.offline_augmentation:
+        folds_aug = generate_offline_dataset(folds,
+                                         transform=config.transform_augmentation,
+                                         save_dir=config.augmentation_dir,
+                                         n_aug=config.n_aug)
     
     for i in range(k):
         print(f"\n{'='*50}")
@@ -49,45 +44,46 @@ def cross_validate(
         
         # Preparação dos dados
         df_val = folds[i]
-        df_train = pd.concat([folds[j] for j in range(k) if j != i], ignore_index=True)
+        if config.offline_augmentation:
+            df_train = pd.concat([folds_aug[j] for j in range(k) if j != i], ignore_index=True)
+        else:
+            df_train = pd.concat([folds[j] for j in range(k) if j != i], ignore_index=True)
 
-        # Aplicação de Offline Augmentation (Caso Requisitado)
-        if offline_augmentation:
-            df_train = generate_offline_dataset(df_train,
-                                                transform=transform_augmentation,
-                                                save_dir=augmentation_dir,
-                                                n_aug=5)
-        
-        train_set = dataset_class(df_train, output_dim, transform_train, sigma = sigma)
-        val_set = dataset_class(df_val, output_dim, transform_validation, sigma = sigma)
+        train_set = config.dataset_class(df_train,
+                                         config.output_dim,
+                                         config.transform_train,
+                                         sigma_heatmap = config.sigma_heatmap)
+        val_set = config.dataset_class(df_val,
+                                       config.output_dim,
+                                       config.transform_validation,
+                                       sigma_heatmap = config.sigma_heatmap)
 
         num_cores = min(8, os.cpu_count()//4 or 1)
 
         train_loader = DataLoader(
             train_set, batch_size=config.batch_size, shuffle=True,
-            collate_fn=collate_fn, num_workers=num_cores, pin_memory=True, persistent_workers=True
+            collate_fn=config.collate_fn, num_workers=num_cores, pin_memory=True, persistent_workers=True
         )
         val_loader = DataLoader(
             val_set, batch_size=config.batch_size, shuffle=False,
-            collate_fn=collate_fn, num_workers=num_cores, pin_memory=True, persistent_workers=True
+            collate_fn=config.collate_fn, num_workers=num_cores, pin_memory=True, persistent_workers=True
         )
         
         # Novo modelo para cada fold
-        model = model_class(**model_kwargs)
+        model = config.model_class(**model_kwargs)
         model.apply(init_weights)
         model.to(config.device)
-        print(config.device)
         
         # Treina fold
         model, history = train_one_fold(
-            model, train_loader, val_loader, config, i+1, modify_input_fn
+            model, train_loader, val_loader, config, i+1
         )
         
         # Validação final
         final_val_loss, _ = validate(
             model, val_loader, 
             LossCalculator(config.criterion_roi, config.criterion_heatmap, config),
-            config.device, modify_input_fn
+            config
         )
         
         results['fold_losses'].append(final_val_loss)

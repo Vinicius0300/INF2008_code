@@ -1,5 +1,7 @@
 import os
 import pandas as pd
+import shutil
+import time
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -102,28 +104,43 @@ def augmentate_single_frame(row, transform, abs_dir, n_aug, save_dir, debug):
     
     return new_rows
 
-def generate_offline_dataset(df, transform, save_dir, n_aug=5, debug = False):
+def generate_offline_dataset(list_df, transform, save_dir, n_aug=5, debug = False):
 
     root = get_project_root_directory()
     abs_dir = os.path.join(root, save_dir)
     os.makedirs(abs_dir, exist_ok=True)
 
-    existing_files = set(os.listdir(abs_dir))
-    new_rows = []
-    
-    if debug:
-        for _, row in tqdm(df.iterrows(), total=len(df), desc="Offline Augmentation - Processando frames"):
-            new_rows = augmentate_single_frame(row, transform, abs_dir, n_aug, save_dir, debug)
-        
-    else:
-        with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
-            futures = [
-                 executor.submit(augmentate_single_frame, row, transform, abs_dir, n_aug, save_dir, False) 
-                 for _, row in df.iterrows()
-            ]
-            for f in tqdm(futures, desc="Offline Augmentation - Processando em Paralelo"):
-                new_rows.extend(f.result())
-        
-    dfAug = pd.DataFrame(new_rows)
-    
-    return dfAug
+    # Apaga elementos de dentro da pasta em que salvamos augmentations
+    if os.path.exists(abs_dir):
+        shutil.rmtree(abs_dir)
+    os.makedirs(abs_dir)
+    print("Arquivos antigos de augmentation apagados!")
+    time.sleep(1)
+
+    list_dfs_aug = [] # Novos dataframes augmented
+    for i in range(len(list_df)):
+        new_rows = []
+        df = list_df[i]
+        save_dir_df = os.path.join(save_dir, f"fold_{i+1}")
+        abs_dir_df = os.path.join(abs_dir, f"fold_{i+1}")
+        os.makedirs(abs_dir_df)
+        if debug:
+            for _, row in tqdm(df.iterrows(),
+                               total=len(df),
+                               desc="Offline Augmentation - Processando frames",
+                               mininterval=0.5):
+                new_rows = augmentate_single_frame(row, transform, abs_dir_df, n_aug, save_dir_df, debug)
+            
+        else:
+            with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+                futures = [
+                    executor.submit(augmentate_single_frame, row, transform, abs_dir_df, n_aug, save_dir_df, False) 
+                    for _, row in df.iterrows()
+                ]
+                for f in tqdm(futures,
+                              desc="Offline Augmentation - Processando em Paralelo",
+                              mininterval=0.5):
+                    new_rows.extend(f.result())
+            
+        list_dfs_aug.append(pd.DataFrame(new_rows))
+    return list_dfs_aug

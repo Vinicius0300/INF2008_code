@@ -6,13 +6,10 @@ from src.training.loss import LossCalculator
 from src.evalutation.evaluation import TestEvaluator
 
 def evaluate_model_on_test(
-    model_class,
-    model_kwargs: Dict,
     checkpoint_path: str,
     test_dataset,
-    config: TrainingConfig,
-    modify_input_fn: Callable,
-    output_dir: str = "./evaluation_results"
+    output_dir: str,
+    config: TrainingConfig
 ):
     """
     Pipeline completo de avaliação no conjunto de teste
@@ -36,11 +33,8 @@ def evaluate_model_on_test(
     
     # Inicializa avaliador
     evaluator = TestEvaluator(
-        model_class=model_class,
-        model_kwargs=model_kwargs,
         checkpoint_path=checkpoint_path,
-        device=config.device,
-        modify_input_fn=modify_input_fn
+        config=config
     )
     
     # Avalia conjunto de teste

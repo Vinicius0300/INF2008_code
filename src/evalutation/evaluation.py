@@ -5,6 +5,7 @@ import torch
 from typing import Dict, Callable
 from scipy.stats import pearsonr
 
+from src.training.config import TrainingConfig
 from src.training.loss import LossCalculator
 
 class TestEvaluator:
@@ -12,20 +13,17 @@ class TestEvaluator:
     
     def __init__(
         self,
-        model_class,
-        model_kwargs: Dict,
         checkpoint_path: str,
-        device: str,
-        modify_input_fn: Callable
+        config: TrainingConfig
     ):
-        self.model_class = model_class
-        self.model_kwargs = model_kwargs or {}
-        self.device = device
-        self.modify_input_fn = modify_input_fn
+        self.model_class = config.model_class
+        self.model_kwargs = config.model_kwargs or {}
+        self.device = config.device
+        self.modify_input_fn = config.modify_input_fn
         
         # Carrega modelo
-        self.model = model_class(**self.model_kwargs).to(device)
-        checkpoint = torch.load(checkpoint_path, map_location=device)
+        self.model = self.model_class(**self.model_kwargs).to(self.device)
+        checkpoint = torch.load(checkpoint_path, map_location=self.device)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.eval()
         
