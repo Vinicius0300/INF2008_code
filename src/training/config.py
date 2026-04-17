@@ -43,6 +43,7 @@ class TrainingConfig:
 
         checkpoint_dir: str = "./checkpoints/unet",
         device: str = "cuda",
+        predict_roi: bool = True,
     ):
         # Relacionandos ao modelo
         self.model_class = model_class
@@ -81,5 +82,6 @@ class TrainingConfig:
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.device = device
+        self.predict_roi = predict_roi
 
         

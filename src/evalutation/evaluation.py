@@ -99,12 +99,17 @@ class TestEvaluator:
             with torch.no_grad():
                 pred_roi, pred_heatmap = self.model(input_tensor)
             
-            pred_heatmap = pred_heatmap.squeeze(0)
-            pred_roi = pred_roi.squeeze(0)
+            if pred_heatmap != None:
+                pred_heatmap = pred_heatmap.squeeze(0)
+            if pred_roi != None:
+                pred_roi = pred_roi.squeeze(0)
             
             # Extrai pontos
             gt_points = self.extract_keypoints_from_heatmap(gt_heatmap)
-            pred_points = self.extract_keypoints_from_heatmap(pred_heatmap, pred_roi)
+            if pred_heatmap != None:
+                pred_points = self.extract_keypoints_from_heatmap(pred_heatmap, pred_roi)
+            else: 
+                pred_points = torch.tensor([[0.0, 0.0], [0.0, 0.0]]) # Só pra ter alguma coisa, mas de fato nada é previsto.
             
             # Calcula distâncias por keypoint
             for k in range(num_keypoints):
@@ -123,8 +128,8 @@ class TestEvaluator:
             # Armazena para visualização
             results['predictions'].append({
                 'points': pred_points,
-                'heatmap': pred_heatmap.cpu(),
-                'roi': pred_roi.cpu()
+                'heatmap': pred_heatmap.cpu() if pred_heatmap != None else None,
+                'roi': pred_roi.cpu() if pred_roi != None else None
             })
             results['ground_truths'].append({
                 'points': gt_points,
@@ -184,10 +189,11 @@ class TestEvaluator:
                   alpha=0.5, s=20, color='purple')
         
         # Adiciona linha de tendência
-        z = np.polyfit(results['heatmap_losses'], results['total_losses'], 1)
-        p = np.poly1d(z)
-        x_line = np.linspace(results['heatmap_losses'].min(), results['heatmap_losses'].max(), 100)
-        ax.plot(x_line, p(x_line), "r--", alpha=0.8, label='Tendência')
+        if min(results["heatmap_losses"]) != max(results["heatmap_losses"]):
+            z = np.polyfit(results['heatmap_losses'], results['total_losses'], 1)
+            p = np.poly1d(z)
+            x_line = np.linspace(results['heatmap_losses'].min(), results['heatmap_losses'].max(), 100)
+            ax.plot(x_line, p(x_line), "r--", alpha=0.8, label='Tendência')
         
         # Correlação
         corr, _ = pearsonr(results['heatmap_losses'], results['total_losses'])
@@ -328,13 +334,18 @@ class TestEvaluator:
                 
                 # Heatmap e ROI predito
                 ax_pred = axes[1, col]
-                pred_heatmap = results['predictions'][idx]['heatmap'][k].numpy()
-                pred_roi = results['predictions'][idx]['roi'].squeeze().numpy()
+                im = None
+                pred_heatmap = results['predictions'][idx]['heatmap'][k].numpy() if results['predictions'][idx]['heatmap'] != None else None
+                pred_roi = results['predictions'][idx]['roi'].squeeze().numpy() if results['predictions'][idx]['roi'] != None else None
                 ground_truths_roi = results['ground_truths'][idx]['roi'].squeeze().numpy()
-                im = ax_pred.imshow(pred_heatmap, cmap='hot')
-                ax_pred.contour(pred_roi, levels=[0.5], colors='blue', linewidths=4)
-                ax_pred.imshow(np.ma.masked_where(pred_roi < 0.5, pred_roi), 
-                               cmap='Greens', alpha=0.5, vmin=0, vmax=1)               
+                if pred_heatmap is not None:
+                    im = ax_pred.imshow(pred_heatmap, cmap='hot', vmin = 0, vmax = 1)
+                if pred_roi is not None:
+                    ax_pred.contour(pred_roi, levels=[0.5], colors='blue', linewidths=4)
+                    roi_img = ax_pred.imshow(np.ma.masked_where(pred_roi < 0.5, pred_roi), 
+                                   cmap='Greens', alpha=0.5, vmin=0, vmax=1)
+                    if im is None: 
+                        im = roi_img              
                 ax_pred.scatter(pred_point[1], pred_point[0], color='cyan', marker='o',
                                s=100, linewidths=2)
                 ax_pred.set_title('Heatmap + ROI Predita')

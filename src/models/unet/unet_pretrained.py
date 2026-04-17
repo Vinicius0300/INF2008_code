@@ -45,7 +45,7 @@ class UpSample(nn.Module):
     
     
 class UNet_ImageNet(nn.Module):
-    def __init__(self, num_keypoints=2, in_channels=1):
+    def __init__(self, num_keypoints=2, in_channels=1, return_mode="both"):
         super().__init__()
         base_model = models.resnet18(weights='IMAGENET1K_V1')
         
@@ -88,6 +88,12 @@ class UNet_ImageNet(nn.Module):
         self.head_roi = nn.Conv2d(64, 1, kernel_size=1)
         self.head_kp = nn.Conv2d(64, num_keypoints, kernel_size=1)
 
+        # O que o modelo irá retornar
+        self.return_mode = return_mode
+
+    def set_return_mode(self, mode):
+        self.return_mode = mode
+
     def forward(self, x):
         # Encoder
         e1 = self.enc1(x)      # 64 canais, res 1/2
@@ -110,7 +116,15 @@ class UNet_ImageNet(nn.Module):
         # Voltando para a resolução original (256x256)
         out = F.interpolate(u4, scale_factor=2, mode='bilinear', align_corners=True)
 
-        roi = self.head_roi(out)
-        kp = torch.sigmoid(self.head_kp(out))
-
-        return roi, kp
+        if self.return_mode == "both":
+            roi = self.head_roi(out)
+            kp = torch.sigmoid(self.head_kp(out))
+            return roi, kp
+        elif self.return_mode == "heatmap_only":
+            kp = torch.sigmoid(self.head_kp(out))
+            return None, kp
+        elif self.return_mode == "roi_only":
+            roi = self.head_roi(out)
+            return roi, None
+        else:
+            raise Exception(f"return_mode selecionado é inválido - {self.return_mode}")
