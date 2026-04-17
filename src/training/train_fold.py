@@ -16,7 +16,6 @@ def train_one_fold(
     val_loader: DataLoader,
     config: TrainingConfig,
     fold: int,
-    modify_input_fn: Callable
 ) -> Tuple[nn.Module, List[Dict]]:
     """Treina um fold completo com early stopping e checkpoints"""
 
@@ -44,13 +43,12 @@ def train_one_fold(
         # Treino
         train_loss, train_components = train_one_epoch(
             model, train_loader, loss_calculator, optimizer,
-            config.device, modify_input_fn, scaler = scaler
+            config, scaler = scaler
         )
         
         # Validação
         val_loss, val_components = validate(
-            model, val_loader, loss_calculator, config.device,
-            modify_input_fn
+            model, val_loader, loss_calculator, config
         )
         
         # Scheduler

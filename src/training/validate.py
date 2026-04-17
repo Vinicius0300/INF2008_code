@@ -3,33 +3,33 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from typing import Dict, Tuple, Callable
 
+from src.training.config import TrainingConfig
 from src.training.loss import LossCalculator
 
 def validate(
     model: nn.Module,
     val_loader: DataLoader,
     loss_calculator: LossCalculator,
-    device: str,
-    modify_input_fn: Callable
+    config: TrainingConfig
 ) -> Tuple[float, Dict]:
     
     """Valida o modelo"""
     model.eval()
-    val_loss = torch.tensor(0.0, device=device)
+    val_loss = torch.tensor(0.0, device=config.device)
     loss_components = {
-        'roi': torch.tensor(0.0, device=device), 
-        'heatmap': torch.tensor(0.0, device=device), 
-        'penalty': torch.tensor(0.0, device=device)
+        'roi': torch.tensor(0.0, device=config.device), 
+        'heatmap': torch.tensor(0.0, device=config.device), 
+        'penalty': torch.tensor(0.0, device=config.device)
     }
 
     with torch.no_grad():
         for inputs, keypoints, heatmaps, roi in val_loader:
 
             # Manda pra GPU
-            inputs = inputs.to(device, non_blocking=True)
-            inputs = modify_input_fn(inputs)
-            gt_heatmap = heatmaps.to(device)
-            gt_roi = roi.to(device)
+            inputs = inputs.to(config.device, non_blocking=True)
+            inputs = config.modify_input_fn(inputs)
+            gt_heatmap = heatmaps.to(config.device)
+            gt_roi = roi.to(config.device)
             
             pred_roi, pred_heatmap = model(inputs)
             

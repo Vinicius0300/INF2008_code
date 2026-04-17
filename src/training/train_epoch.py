@@ -5,6 +5,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from typing import Dict, Tuple, Callable
 
+from src.training.config import TrainingConfig
 from src.training.loss import LossCalculator
 
 
@@ -13,8 +14,7 @@ def train_one_epoch(
     train_loader: DataLoader,
     loss_calculator: LossCalculator,
     optimizer: optim.Optimizer,
-    device: str,
-    modify_input_fn: Callable,
+    config: TrainingConfig,
     accumulation_steps: int = 2,
     scaler: torch.cuda.amp.GradScaler = None
 ) -> Tuple[float, Dict]:
@@ -22,10 +22,10 @@ def train_one_epoch(
     """Treina uma época com gradient accumulation"""
 
     model.train()
-    running_loss = torch.tensor(0.0, device=device)
-    loss_components = {'roi': torch.tensor(0.0, device=device), 
-                       'heatmap': torch.tensor(0.0, device=device), 
-                       'penalty': torch.tensor(0.0, device=device)}
+    running_loss = torch.tensor(0.0, device=config.device)
+    loss_components = {'roi': torch.tensor(0.0, device=config.device), 
+                       'heatmap': torch.tensor(0.0, device=config.device), 
+                       'penalty': torch.tensor(0.0, device=config.device)}
 
     # Zero grad no início
     optimizer.zero_grad(set_to_none=True)
@@ -33,10 +33,10 @@ def train_one_epoch(
     for batch_idx, (inputs, keypoints, heatmaps, roi) in enumerate(tqdm(train_loader, desc="Treinando")):
 
         # Mover para GPU
-        inputs = inputs.to(device, non_blocking=True)
-        inputs = modify_input_fn(inputs)
-        gt_heatmap = heatmaps.to(device, non_blocking=True)
-        gt_roi = roi.to(device, non_blocking=True)
+        inputs = inputs.to(config.device, non_blocking=True)
+        inputs = config.modify_input_fn(inputs)
+        gt_heatmap = heatmaps.to(config.device, non_blocking=True)
+        gt_roi = roi.to(config.device, non_blocking=True)
         
         # Forward pass com ou sem mixed precision
         if scaler is not None:

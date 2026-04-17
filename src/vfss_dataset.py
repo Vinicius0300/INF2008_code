@@ -25,17 +25,17 @@ class VFSSImageDataset():
                  video_frame_df: pd.DataFrame,
                  output_dim: tuple = (512, 512),
                  transform: A.Compose | None = None,
-                 sigma: int = 10):
+                 sigma_heatmap: int = 10):
         '''
         video_frame_df: dataframe com cada linha indicando aonde encontrar
                         o frame e os targets
         output_dim:     Dimensão de output do problema
         transforma:     Transformação que será aplicada no problema (SOMENTE NOS DADOS DE TREINO)
-        sigma:          aplicado na distribuição gaussiana que gera os heatmaps
+        sigma_heatmap:  aplicado na distribuição gaussiana que gera os heatmaps
         '''
         
         self.video_frame_df = video_frame_df.reset_index(drop=True).copy()
-        self.sigma = sigma
+        self.sigma_heatmap = sigma_heatmap
         self.output_dim = output_dim
         self.transform = transform
         self.video_frame_list = self.video_frame_df.to_dict('records')
@@ -73,7 +73,7 @@ class VFSSImageDataset():
         # Calcula Heatmap e Roi com base nos Keypoints Transformados
         h, w = self.output_dim    
         roi = generate_roi_from_points(keypoints, h, w)
-        heatmaps = generate_heatmap_from_points(keypoints, self.output_dim, self.sigma)
+        heatmaps = generate_heatmap_from_points(keypoints, self.output_dim, self.sigma_heatmap)
         image = image.float() / 255.0
 
         return image, keypoints, heatmaps, roi
