@@ -34,6 +34,7 @@ class HighResolutionModule(nn.Module):
     """Módulo que realiza a fusão entre diferentes resoluções"""
     def __init__(self, num_branches, blocks, num_blocks, num_channels):
         super(HighResolutionModule, self).__init__()
+        self.num_channels = num_channels
         self.num_branches = num_branches
         self.branches = self._make_branches(num_branches, blocks, num_blocks, num_channels)
         self.fuse_layers = self._make_fuse_layers()
@@ -59,20 +60,20 @@ class HighResolutionModule(nn.Module):
             for j in range(self.num_branches):
                 if j > i: # Upsampling
                     fuse_layer.append(nn.Sequential(
-                        nn.Conv2d(num_channels[j], num_channels[i], 1, 1, 0, bias=False),
-                        nn.BatchNorm2d(num_channels[i]),
+                        nn.Conv2d(self.num_channels[j], self.num_channels[i], 1, 1, 0, bias=False),
+                        nn.BatchNorm2d(self.num_channels[i]),
                         nn.Upsample(scale_factor=2**(j-i), mode='nearest')))
                 elif j < i: # Downsampling
                     conv_downsamples = []
                     for k in range(i-j):
                         if k == i-j-1:
                             conv_downsamples.append(nn.Sequential(
-                                nn.Conv2d(num_channels[j], num_channels[i], 3, 2, 1, bias=False),
-                                nn.BatchNorm2d(num_channels[i])))
+                                nn.Conv2d(self.num_channels[j], self.num_channels[i], 3, 2, 1, bias=False),
+                                nn.BatchNorm2d(self.num_channels[i])))
                         else:
                             conv_downsamples.append(nn.Sequential(
-                                nn.Conv2d(num_channels[j], num_channels[j], 3, 2, 1, bias=False),
-                                nn.BatchNorm2d(num_channels[j]),
+                                nn.Conv2d(self.num_channels[j], self.num_channels[j], 3, 2, 1, bias=False),
+                                nn.BatchNorm2d(self.num_channels[j]),
                                 nn.ReLU(inplace=True)))
                     fuse_layer.append(nn.Sequential(*conv_downsamples))
                 else:
@@ -150,4 +151,4 @@ class FullHRNet(nn.Module):
         
         # Pegamos o fluxo de maior resolução (112x112) e aplicamos o head para 448x448
         out = self.full_res_head(x_list[0])
-        return out
+        return None, out

@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 
@@ -34,6 +35,7 @@ class HighResolutionModule(nn.Module):
     """Módulo que realiza a fusão entre diferentes resoluções"""
     def __init__(self, num_branches, blocks, num_blocks, num_channels):
         super(HighResolutionModule, self).__init__()
+        self.num_channels = num_channels
         self.num_branches = num_branches
         self.branches = self._make_branches(num_branches, blocks, num_blocks, num_channels)
         self.fuse_layers = self._make_fuse_layers()
@@ -59,20 +61,20 @@ class HighResolutionModule(nn.Module):
             for j in range(self.num_branches):
                 if j > i: # Upsampling
                     fuse_layer.append(nn.Sequential(
-                        nn.Conv2d(num_channels[j], num_channels[i], 1, 1, 0, bias=False),
-                        nn.BatchNorm2d(num_channels[i]),
+                        nn.Conv2d(self.num_channels[j], self.num_channels[i], 1, 1, 0, bias=False),
+                        nn.BatchNorm2d(self.num_channels[i]),
                         nn.Upsample(scale_factor=2**(j-i), mode='nearest')))
                 elif j < i: # Downsampling
                     conv_downsamples = []
                     for k in range(i-j):
                         if k == i-j-1:
                             conv_downsamples.append(nn.Sequential(
-                                nn.Conv2d(num_channels[j], num_channels[i], 3, 2, 1, bias=False),
-                                nn.BatchNorm2d(num_channels[i])))
+                                nn.Conv2d(self.num_channels[j], self.num_channels[i], 3, 2, 1, bias=False),
+                                nn.BatchNorm2d(self.num_channels[i])))
                         else:
                             conv_downsamples.append(nn.Sequential(
-                                nn.Conv2d(num_channels[j], num_channels[j], 3, 2, 1, bias=False),
-                                nn.BatchNorm2d(num_channels[j]),
+                                nn.Conv2d(self.num_channels[j], self.num_channels[j], 3, 2, 1, bias=False),
+                                nn.BatchNorm2d(self.num_channels[j]),
                                 nn.ReLU(inplace=True)))
                     fuse_layer.append(nn.Sequential(*conv_downsamples))
                 else:
@@ -98,44 +100,64 @@ class HighResolutionModule(nn.Module):
 # --- ARQUITETURA FULL-HRNET COMPLETA ---
 
 class FullHRNet_ImageNet(nn.Module):
-    def __init__(self):
+    def __init__(self, num_keypoints=2, width=32, pretrained_path=None):
         super(FullHRNet_ImageNet, self).__init__()
-        # Stem: 448x448 -> 112x112
+        self.width = width
+        
+        # 1. Definição da Arquitetura (Stem, Layers, Transition, Stages)
         self.conv1 = nn.Conv2d(1, 64, kernel_size=3, stride=2, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
 
-        # Stage 1 (Simplificado para este exemplo)
         self.layer1 = nn.Sequential(BasicBlock(64, 64), BasicBlock(64, 64))
         
-        # Canais das ramificações (ex: 32, 64, 128)
-        self.num_channels = [32, 64, 128]
+        self.num_channels = [width, width * 2, width * 4]
         
-        # Camada de transição para criar as 3 resoluções
-        self.transition = nn.ModuleList([
-            nn.Sequential(nn.Conv2d(64, 32, 3, 1, 1, bias=False), nn.BatchNorm2d(32), nn.ReLU(True)),
-            nn.Sequential(nn.Conv2d(64, 64, 3, 2, 1, bias=False), nn.BatchNorm2d(64), nn.ReLU(True)),
-            nn.Sequential(nn.Sequential(nn.Conv2d(64, 64, 3, 2, 1, bias=False), nn.ReLU(True)),
-                          nn.Conv2d(64, 128, 3, 2, 1, bias=False), nn.BatchNorm2d(128), nn.ReLU(True))
+        self.transition1 = nn.ModuleList([
+            nn.Sequential(nn.Conv2d(64, self.num_channels[0], 3, 1, 1, bias=False), nn.BatchNorm2d(self.num_channels[0]), nn.ReLU(True)),
+            nn.Sequential(nn.Conv2d(64, self.num_channels[1], 3, 2, 1, bias=False), nn.BatchNorm2d(self.num_channels[1]), nn.ReLU(True)),
+            nn.Sequential(nn.Sequential(nn.Conv2d(64, 32, 3, 2, 1, bias=False), nn.ReLU(True)), # Ajuste de canal p/ transição
+                          nn.Conv2d(32, self.num_channels[2], 3, 2, 1, bias=False), nn.BatchNorm2d(self.num_channels[2]), nn.ReLU(True))
         ])
 
-        # Stage de Alta Resolução
-        self.high_res_module = HighResolutionModule(num_branches=3, blocks=BasicBlock, 
-                                                    num_blocks=[4, 4, 4], num_channels=self.num_channels)
+        self.stage2 = HighResolutionModule(num_branches=3, blocks=BasicBlock, 
+                                           num_blocks=[4, 4, 4], num_channels=self.num_channels)
 
-        # FULL RESOLUTION HEAD (448x448)
-        # O artigo usa deconvoluções para voltar de 112x112 (Branch 0) para 448x448
         self.full_res_head = nn.Sequential(
-            nn.ConvTranspose2d(32, 32, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(self.num_channels[0], 32, kernel_size=4, stride=2, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(True),
             nn.ConvTranspose2d(32, 16, kernel_size=4, stride=2, padding=1),
             nn.BatchNorm2d(16),
             nn.ReLU(True),
-            nn.Conv2d(16, 4, kernel_size=1, stride=1) # 4 Heatmaps (Hioide A/P, C2, C4)
+            nn.Conv2d(16, num_keypoints, kernel_size=1, stride=1)
         )
+
+        if pretrained_path is not None:
+            self._load_pretrained_internal(pretrained_path)
+
+    def _load_pretrained_internal(self, weight_path):
+        """Lógica de carregamento idêntica à anterior, mas interna ao __init__"""
+        if not os.path.exists(weight_path):
+            print(f"Arquivo de pesos não encontrado em: {weight_path}")
+            return
+
+        checkpoint = torch.load(weight_path, map_location='cpu')
+        state_dict = checkpoint.get('state_dict', checkpoint)
+        model_dict = self.state_dict()
+        new_state_dict = {}
+
+        for k, v in state_dict.items():
+            if k == 'conv1.weight' and v.shape[1] == 3:
+                v = v.mean(dim=1, keepdim=True)
+            
+            if k in model_dict and v.shape == model_dict[k].shape:
+                new_state_dict[k] = v
+
+        self.load_state_dict(new_state_dict, strict=False)
+        print(f"HRNet {self.width} inicializada com {len(new_state_dict)} camadas da ImageNet.")
 
     def forward(self, x):
         x = self.relu(self.bn1(self.conv1(x)))
@@ -143,16 +165,12 @@ class FullHRNet_ImageNet(nn.Module):
         x = self.layer1(x)
         
         # Criar ramificações paralelas
-        x_list = [trans(x) for trans in self.transition]
+        x_list = [trans(x) for trans in self.transition1]
         
         # Fusão HRNet
-        x_list = self.high_res_module(x_list)
+        x_list = self.stage2(x_list)
         
         # Pegamos o fluxo de maior resolução (112x112) e aplicamos o head para 448x448
         out = self.full_res_head(x_list[0])
-        return out
-
-# Exemplo de uso:
-# model = FullHRNet(cfg=None)
-# input_tensor = torch.randn(1, 1, 448, 448)
-# output = model(input_tensor) # [1, 4, 448, 448]
+        return None, out
+    

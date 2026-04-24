@@ -34,7 +34,8 @@ def train_one_epoch(
 
         # Mover para GPU
         inputs = inputs.to(config.device, non_blocking=True)
-        inputs = config.modify_input_fn(inputs)
+        if config.modify_input_fn != None:
+            inputs = config.modify_input_fn(inputs)
         gt_heatmap = heatmaps.to(config.device, non_blocking=True)
         gt_roi = roi.to(config.device, non_blocking=True)
         

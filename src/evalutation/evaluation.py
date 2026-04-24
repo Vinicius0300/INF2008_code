@@ -91,7 +91,11 @@ class TestEvaluator:
             input_img, keypoint, heatmap, roi = test_dataset[idx]
             
             # Preparação
-            input_tensor = self.modify_input_fn(input_img).float().to(self.device)
+            if self.modify_input_fn is not None:
+                input_tensor = self.modify_input_fn(input_img).float().to(self.device)
+            else: 
+                input_tensor = input_img.unsqueeze(0).float().to(self.device)
+
             gt_roi = roi.float().to(self.device)
             gt_heatmap = heatmap.float().to(self.device)
             
@@ -99,14 +103,14 @@ class TestEvaluator:
             with torch.no_grad():
                 pred_roi, pred_heatmap = self.model(input_tensor)
             
-            if pred_heatmap != None:
+            if pred_heatmap is not None:
                 pred_heatmap = pred_heatmap.squeeze(0)
-            if pred_roi != None:
+            if pred_roi is not None:
                 pred_roi = pred_roi.squeeze(0)
             
             # Extrai pontos
             gt_points = self.extract_keypoints_from_heatmap(gt_heatmap)
-            if pred_heatmap != None:
+            if pred_heatmap is not None:
                 pred_points = self.extract_keypoints_from_heatmap(pred_heatmap, pred_roi)
             else: 
                 pred_points = torch.tensor([[0.0, 0.0], [0.0, 0.0]]) # Só pra ter alguma coisa, mas de fato nada é previsto.
