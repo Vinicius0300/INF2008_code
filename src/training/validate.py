@@ -12,13 +12,13 @@ def validate(
     loss_calculator: LossCalculator,
     config: TrainingConfig
 ) -> Tuple[float, Dict]:
-    
+
     """Valida o modelo"""
     model.eval()
     val_loss = torch.tensor(0.0, device=config.device)
     loss_components = {
-        'roi': torch.tensor(0.0, device=config.device), 
-        'heatmap': torch.tensor(0.0, device=config.device), 
+        'roi': torch.tensor(0.0, device=config.device),
+        'heatmap': torch.tensor(0.0, device=config.device),
         'penalty': torch.tensor(0.0, device=config.device)
     }
 
@@ -31,21 +31,21 @@ def validate(
                 inputs = config.modify_input_fn(inputs)
             gt_heatmap = heatmaps.to(config.device)
             gt_roi = roi.to(config.device)
-            
+
             pred_roi, pred_heatmap = model(inputs)
-            
+
             loss_total, components = loss_calculator.calculate_loss(
                 pred_roi, pred_heatmap, gt_roi, gt_heatmap
             )
-            
+
             val_loss += loss_total
             for key in loss_components:
                 loss_components[key] += components[key]
-    
+
     n_batches = len(val_loader)
     if n_batches == 0:
         return 0.0, {k: 0.0 for k in loss_components.keys()}
-    
+
     avg_loss = (val_loss / n_batches).item()
     avg_components = {k: (v / n_batches).item() for k, v in loss_components.items()}
     return avg_loss, avg_components

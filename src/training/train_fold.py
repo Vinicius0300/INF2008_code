@@ -20,7 +20,9 @@ def train_one_fold(
     """Treina um fold completo com early stopping e checkpoints"""
 
     # Configuração
-    optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
+    optimizer = config.optimizer(model.parameters(),
+                                 lr=config.learning_rate,
+                                 **config.optimizer_kwargs)
     scheduler = config.scheduler(
         optimizer,
         mode="min",
@@ -30,7 +32,7 @@ def train_one_fold(
 
     loss_calculator = LossCalculator(config.criterion_roi, config.criterion_heatmap, config)
     checkpoint_manager = CheckpointManager(config.checkpoint_dir, fold)
-    
+
     # Tracking
     best_val_loss = float('inf')
     patience_counter = 0
@@ -45,12 +47,12 @@ def train_one_fold(
             model, train_loader, loss_calculator, optimizer,
             config, scaler = scaler
         )
-        
+
         # Validação
         val_loss, val_components = validate(
             model, val_loader, loss_calculator, config
         )
-        
+
         # Scheduler
         scheduler.step(val_loss)
 
@@ -64,24 +66,24 @@ def train_one_fold(
             'lr': optimizer.param_groups[0]['lr']
         }
         history.append(epoch_info)
-        
+
         print(f"Época {epoch+1}/{config.epochs}")
         print(f"  Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
         print(f"  Val Components - ROI: {val_components['roi']:.4f}, "
               f"Heatmap: {val_components['heatmap']:.4f}, "
               f"Penalty: {val_components['penalty']:.4f}")
-        
+
         # Scheduler Early Stopping (Learning Rate)
         if optimizer.param_groups[0]["lr"] <= config.lr_patience:
             print("LR mínima atingida, parando.")
             break
-        
+
         # Checkpoint e Early Stopping
         is_best = val_loss < best_val_loss
         checkpoint_manager.save_checkpoint(
             model, optimizer, epoch, val_loss, train_loss, is_best
         )
-        
+
         if is_best:
             best_val_loss = val_loss
             patience_counter = 0
@@ -90,8 +92,8 @@ def train_one_fold(
             if patience_counter >= config.patience:
                 print(f"Early stopping ativado na época {epoch+1}")
                 break
-    
+
     # Carrega melhor modelo
     checkpoint_manager.load_checkpoint(model, optimizer, best=True)
-    
+
     return model, history

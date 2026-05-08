@@ -4,7 +4,7 @@ import numpy as np
 import os
 from torch.utils.data import DataLoader
 from typing import Dict, List, Tuple, Callable
-
+import pickle
 import albumentations as A
 
 from src.training.config import TrainingConfig
@@ -17,11 +17,11 @@ from src.offline_augmentation import generate_offline_dataset
 
 def holdout(
     df_train: pd.DataFrame,
-    df_val: pd.DataFrame,                           
-    config: TrainingConfig,                                 
+    df_val: pd.DataFrame,
+    config: TrainingConfig,
 ) -> Dict:
     """Executa Treinamento padrão (conjunto de treino e conjunto de validação)"""
-    
+
     model_kwargs = config.model_kwargs or {}
     results = {
         'fold_losses': [],          # Aceitamos essa nomeclatura por enquanto só pra ficar igual ao cross_validation
@@ -29,14 +29,18 @@ def holdout(
         'best_fold': None,
         'best_loss': float('inf')
     }
-    
+
+    # Salvando configurações para criação/treinamento do modelo
+    with open(os.path.join(config.checkpoint_dir,'config.pkl'), 'wb') as f:
+        pickle.dump(config, f)
+
     # Aplicação de Offline Augmentation (Caso Requisitado)
     if config.offline_augmentation:
         df_train = generate_offline_dataset([df_train],
                                             transform=config.transform_augmentation,
                                             save_dir=config.augmentation_dir,
                                             n_aug=5)[0]
-    
+
     train_set = config.dataset_class(df_train, config.output_dim, config.transform_train, sigma_heatmap = config.sigma_heatmap)
     val_set = config.dataset_class(df_val, config.output_dim, config.transform_validation, sigma_heatmap = config.sigma_heatmap)
 
@@ -50,12 +54,12 @@ def holdout(
         val_set, batch_size=config.batch_size, shuffle=False,
         collate_fn=config.collate_fn, num_workers=num_cores, pin_memory=True, persistent_workers=True
     )
-    
+
     # Novo modelo para cada fold
     model = config.model_class(**model_kwargs)
     model.apply(init_weights)
     model.to(config.device)
-    
+
     # Treina fold
     model, history = train_one_fold(
         model,
@@ -64,37 +68,37 @@ def holdout(
         config,
         1, # fold = 1, visto que só tem uma divisão
     )
-    
+
     # Validação final
     final_val_loss, _ = validate(
         model,
-        val_loader, 
+        val_loader,
         LossCalculator(config.criterion_roi, config.criterion_heatmap, config),
         config
     )
-    
+
     results['fold_losses'].append(final_val_loss)
     results['fold_histories'].append(history)
-    
-    # Atualiza melhor fold - Desnecessário, mas tudo bem... 
+
+    # Atualiza melhor fold - Desnecessário, mas tudo bem...
     if final_val_loss < results['best_loss']:
         results['best_loss'] = final_val_loss
         results['best_fold'] = 1
-    
+
     print(f"\nLoss Final: {final_val_loss:.4f}")
-    
+
     # Estatísticas finais
     results['mean_loss'] = np.mean(results['fold_losses'])
     results['std_loss'] = np.std(results['fold_losses'])
-    
+
     print(f"\n{'='*50}")
     print(f"RESULTADOS FINAIS")
     print(f"{'='*50}")
     print(f"Média dos Folds: {results['mean_loss']:.4f} ± {results['std_loss']:.4f}")
     print(f"Melhor Fold: {results['best_fold']} (Loss: {results['best_loss']:.4f})")
-    
+
     # Salva resultados
-    results_path = config.checkpoint_dir / "cross_validation_results.json"
+    results_path = config.checkpoint_dir / "metrics_results.json"
     with open(results_path, 'w') as f:
         json.dump({
             'fold_losses': results['fold_losses'],
@@ -103,5 +107,5 @@ def holdout(
             'best_fold': results['best_fold'],
             'best_loss': results['best_loss']
         }, f, indent=2)
-    
+
     return results

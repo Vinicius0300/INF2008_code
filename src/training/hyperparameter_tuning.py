@@ -25,14 +25,14 @@ def objective_optuna(
     model_kwargs: Dict = None
 ) -> float:
     """Função objetivo para otimização Optuna"""
-    
+
     # Hiperparâmetros a serem otimizados
     lr = trial.suggest_float("lr", 1e-5, 1e-2, log=True)
     batch_size = trial.suggest_categorical("batch_size", [4, 8, 16, 32])
     weight_roi = trial.suggest_float("weight_roi", 0.2, 0.6)
     weight_heatmap = trial.suggest_float("weight_heatmap", 0.3, 0.7)
     weight_penalty = trial.suggest_float("weight_penalty", 0.05, 0.2)
-    
+
     # Configuração com hiperparâmetros sugeridos
     config = TrainingConfig(
         learning_rate=lr,
@@ -45,7 +45,7 @@ def objective_optuna(
         checkpoint_dir=f"./optuna_trials/trial_{trial.number}",
         device=device
     )
-    
+
     # Executa cross-validation
     results = cross_validate(
         model_class, folds, config, target, output_dim,
@@ -54,13 +54,13 @@ def objective_optuna(
 
     # Limpa memória após cada trial
     torch.cuda.empty_cache()
-    
+
     # Pruning - reporta loss intermediária para parar trials ruins
     # Optuna pode cancelar trials que claramente não vão dar certo
     trial.report(results['mean_loss'], step=0)
     if trial.should_prune():
         raise optuna.TrialPruned()
-    
+
     return results['mean_loss']
 
 
@@ -79,12 +79,12 @@ def tune_hyperparameters(
     model_kwargs: Dict = None
 ) -> optuna.Study:
     """Tunagem de hiperparâmetros com Optuna"""
-    
+
     study = optuna.create_study(
         direction="minimize",
         study_name="unet_hyperparameter_tuning"
     )
-    
+
     study.optimize(
         lambda trial: objective_optuna(
             trial, model_class, folds, target, output_dim,
@@ -93,13 +93,13 @@ def tune_hyperparameters(
         n_trials=n_trials,
         show_progress_bar=True
     )
-    
+
     print("\n" + "="*50)
     print("MELHORES HIPERPARÂMETROS")
     print("="*50)
     print(f"Melhor Loss: {study.best_value:.4f}")
     print("Parâmetros:")
     for key, value in study.best_params.items():
-        print(f"  {key}: {value}")
-    
+       print(f"  {key}: {value}")
+
     return study
