@@ -89,8 +89,8 @@ def split_data_k_fold(video_frame_df, test_size=0.2, n_folds=5, random_state=42)
 
     # Split off the test set with stratification
     patient_id_folds, patient_id_test = train_test_split(
-        patient_ids, 
-        test_size=test_size, 
+        patient_ids,
+        test_size=test_size,
         random_state=random_state
     )
 
@@ -106,7 +106,7 @@ def split_data_k_fold(video_frame_df, test_size=0.2, n_folds=5, random_state=42)
             ]
             .reset_index(drop=True)
         )
-    
+
     print('Folds all:', video_frame_split['folds_all'].paciente_id.nunique())
     print('Test:', video_frame_split['test'].paciente_id.nunique())
 
@@ -115,7 +115,7 @@ def split_data_k_fold(video_frame_df, test_size=0.2, n_folds=5, random_state=42)
     print_split_summary('Overall Dataset', video_frame_df, initial_frames_qtt)
     print_split_summary('Training + Validation Set', video_frame_split['folds_all'], initial_frames_qtt)
     print_split_summary('Test Set', video_frame_split['test'], initial_frames_qtt, add_new_line=True)
-    
+
     # Create K-Folds
     video_frame_split['folds'] = []
     kfold = KFold(n_splits=n_folds, shuffle=True, random_state=random_state)
@@ -135,7 +135,7 @@ def split_data_k_fold(video_frame_df, test_size=0.2, n_folds=5, random_state=42)
         )
         video_frame_split['folds'].append(fold)
         print_split_summary(f'Fold {fold_index+1}', fold, initial_frames_qtt)
-    
+
     split_summary = create_split_summary(video_frame_split)
     split_summary.to_csv("data/metadados/split_folds_test.csv")
     display(split_summary)

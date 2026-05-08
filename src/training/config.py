@@ -22,20 +22,24 @@ class TrainingConfig:
 
     model_class: Callable
     model_kwargs: dict
-    model_name: str
     test_size: float
     n_folds: int
     dataset_class: Callable
 
-    optimizer_kwargs: dict
-    optimizer: Callable = torch.optim.Adam
     sigma_heatmap: int = 20
     learning_rate: float = 3e-4
     batch_size: int = 8
     epochs: int = 200
     patience: int = 5
     lr_patience: float = 1e-10
+    optimizer: Callable = torch.optim.Adam
+    optimizer_kwargs: dict = field(default_factory=dict)
     scheduler: Callable = torch.optim.lr_scheduler.ReduceLROnPlateau
+
+    offline_augmentation: bool = False
+    transform_augmentation: A.Compose | None = None
+    augmentation_dir: str|bool = False
+    n_aug: int = 5
 
     output_dim: tuple[int] = (256, 256)
     modify_input_fn: Callable|None = modify_input
@@ -49,16 +53,13 @@ class TrainingConfig:
     weight_heatmap: float = 0.4    # 0.5
     weight_penalty: float = 0.2    # 0.1
 
-    offline_augmentation: bool = False
-    transform_augmentation: A.Compose | None = None
-    augmentation_dir: str|bool = False
-    n_aug: int = 5
-
-    checkpoint_dir: str = "./checkpoints/unet"
     device: str = "cuda"
     predict_roi: bool = True
+    width: None|int = None
 
     # Definidos no __post_init__
+    model_name: str = field(init=False)
+    checkpoint_dir: str = field(init=False)
     list_df_folds: list[pd.DataFrame] = field(init=False)
     df_test: pd.DataFrame = field(init=False)
 
@@ -69,10 +70,7 @@ class TrainingConfig:
         self.criterion_roi      = self.criterion_roi      if self.criterion_roi      is not None else nn.BCELoss()
         self.criterion_heatmap  = self.criterion_heatmap  if self.criterion_heatmap  is not None else nn.MSELoss()
 
-        # Outros
-        self.checkpoint_dir = Path(self.checkpoint_dir)
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
+        # Data frame - Conjunto de Teste e Folds
         root = get_project_root_directory()
         final_path_dataframe = os.path.join(root, self.path_dataframe)
         video_frame_df = pd.read_csv(final_path_dataframe)
@@ -80,3 +78,14 @@ class TrainingConfig:
         video_frame_df["keypoints"] = video_frame_df["target_dir"].apply(load_points)
 
         self.list_df_folds, self.df_test = split_data_k_fold(video_frame_df, test_size=self.test_size, n_folds=self.n_folds)
+
+        # Nome do modelo
+        if self.width == None:
+            self.model_name = f"{self.model_class.__name__}\\{self.criterion_heatmap.__class__.__name__}_{str(self.epochs)}ep"
+        else:
+            self.model_name = f"{self.model_class.__name__}\\{self.criterion_heatmap.__class__.__name__}_{str(self.epochs)}ep_{str(self.width)}W"
+
+        # Checkpoint dos Modelos
+        self.checkpoint_dir = f"data\\model_weights\\{self.model_name}"
+        self.checkpoint_dir = Path(self.checkpoint_dir)
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)

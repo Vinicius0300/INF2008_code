@@ -85,7 +85,7 @@ class HighResolutionModule(nn.Module):
     def forward(self, x):
         for i in range(self.num_branches):
             x[i] = self.branches[i](x[i])
-        
+
         x_fuse = []
         for i in range(len(self.fuse_layers)):
             y = x[0] if i == 0 else self.fuse_layers[i][0](x[0])
@@ -103,7 +103,7 @@ class FullHRNet_ImageNet(nn.Module):
     def __init__(self, num_keypoints=2, width=32, pretrained_path=None):
         super(FullHRNet_ImageNet, self).__init__()
         self.width = width
-        
+
         # 1. Definição da Arquitetura (Stem, Layers, Transition, Stages)
         self.conv1 = nn.Conv2d(1, 64, kernel_size=3, stride=2, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
@@ -112,9 +112,9 @@ class FullHRNet_ImageNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
 
         self.layer1 = nn.Sequential(BasicBlock(64, 64), BasicBlock(64, 64))
-        
+
         self.num_channels = [width, width * 2, width * 4]
-        
+
         self.transition1 = nn.ModuleList([
             nn.Sequential(nn.Conv2d(64, self.num_channels[0], 3, 1, 1, bias=False), nn.BatchNorm2d(self.num_channels[0]), nn.ReLU(True)),
             nn.Sequential(nn.Conv2d(64, self.num_channels[1], 3, 2, 1, bias=False), nn.BatchNorm2d(self.num_channels[1]), nn.ReLU(True)),
@@ -122,7 +122,7 @@ class FullHRNet_ImageNet(nn.Module):
                           nn.Conv2d(32, self.num_channels[2], 3, 2, 1, bias=False), nn.BatchNorm2d(self.num_channels[2]), nn.ReLU(True))
         ])
 
-        self.stage2 = HighResolutionModule(num_branches=3, blocks=BasicBlock, 
+        self.stage2 = HighResolutionModule(num_branches=3, blocks=BasicBlock,
                                            num_blocks=[4, 4, 4], num_channels=self.num_channels)
 
         self.full_res_head = nn.Sequential(
@@ -152,7 +152,7 @@ class FullHRNet_ImageNet(nn.Module):
         for k, v in state_dict.items():
             if k == 'conv1.weight' and v.shape[1] == 3:
                 v = v.mean(dim=1, keepdim=True)
-            
+
             if k in model_dict and v.shape == model_dict[k].shape:
                 new_state_dict[k] = v
 
@@ -163,14 +163,13 @@ class FullHRNet_ImageNet(nn.Module):
         x = self.relu(self.bn1(self.conv1(x)))
         x = self.relu(self.bn2(self.conv2(x)))
         x = self.layer1(x)
-        
+
         # Criar ramificações paralelas
         x_list = [trans(x) for trans in self.transition1]
-        
+
         # Fusão HRNet
         x_list = self.stage2(x_list)
-        
+
         # Pegamos o fluxo de maior resolução (112x112) e aplicamos o head para 448x448
         out = self.full_res_head(x_list[0])
         return None, out
-    
