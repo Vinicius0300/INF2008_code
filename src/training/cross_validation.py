@@ -13,16 +13,16 @@ from src.training.validate import validate
 from src.training.train_fold import train_one_fold
 from src.models.utils_model import init_weights
 from src.offline_augmentation import generate_offline_dataset
+from src.training.test_control import att_test_control
 
 
 def cross_validate(
-    folds: List[pd.DataFrame],
     config: TrainingConfig
 ) -> Dict:
     """Executa validação cruzada K-Fold"""
 
     model_kwargs = config.model_kwargs or {}
-    k = len(folds)
+    k = config.n_folds
     results = {
         'fold_losses': [],
         'fold_histories': [],
@@ -32,7 +32,7 @@ def cross_validate(
 
     # Aplicação de Offline Augmentation (Caso Requisitado)
     if config.offline_augmentation:
-        folds_aug = generate_offline_dataset(folds,
+        folds_aug = generate_offline_dataset(config.list_df_folds,
                                          transform=config.transform_augmentation,
                                          save_dir=config.augmentation_dir,
                                          n_aug=config.n_aug)
@@ -43,11 +43,11 @@ def cross_validate(
         print(f"{'='*50}")
 
         # Preparação dos dados
-        df_val = folds[i]
+        df_val = config.list_df_folds[i]
         if config.offline_augmentation:
             df_train = pd.concat([folds_aug[j] for j in range(k) if j != i], ignore_index=True)
         else:
-            df_train = pd.concat([folds[j] for j in range(k) if j != i], ignore_index=True)
+            df_train = pd.concat([config.list_df_folds[j] for j in range(k) if j != i], ignore_index=True)
 
         train_set = config.dataset_class(df_train,
                                          config.output_dim,
@@ -96,6 +96,9 @@ def cross_validate(
 
         print(f"\nFold {i+1} Loss Final: {final_val_loss:.4f}")
 
+        # Salva o teste feito no Controle de Testes
+        att_test_control(f"Fold {i+1}", df_train, history, config)
+
     # Estatísticas finais
     results['mean_loss'] = np.mean(results['fold_losses'])
     results['std_loss'] = np.std(results['fold_losses'])
@@ -110,6 +113,7 @@ def cross_validate(
     results_path = config.checkpoint_dir / "metrics_results.json"
     with open(results_path, 'w') as f:
         json.dump({
+            'fold_histories': results['fold_histories'],
             'fold_losses': results['fold_losses'],
             'mean_loss': results['mean_loss'],
             'std_loss': results['std_loss'],

@@ -1,5 +1,6 @@
 import pandas as pd
 import json
+from datetime import datetime
 import numpy as np
 import os
 from torch.utils.data import DataLoader
@@ -13,6 +14,7 @@ from src.training.validate import validate
 from src.training.train_fold import train_one_fold
 from src.models.utils_model import init_weights
 from src.offline_augmentation import generate_offline_dataset
+from src.training.test_control import att_test_control
 
 
 def holdout(
@@ -101,11 +103,15 @@ def holdout(
     results_path = config.checkpoint_dir / "metrics_results.json"
     with open(results_path, 'w') as f:
         json.dump({
+            'fold_histories': results['fold_histories'],
             'fold_losses': results['fold_losses'],
             'mean_loss': results['mean_loss'],
             'std_loss': results['std_loss'],
             'best_fold': results['best_fold'],
             'best_loss': results['best_loss']
         }, f, indent=2)
+
+    # Salva o teste feito no Controle de Testes
+    att_test_control("Holdout", df_train, history, config)
 
     return results

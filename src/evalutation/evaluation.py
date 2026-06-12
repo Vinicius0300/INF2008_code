@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import torch
@@ -150,6 +151,80 @@ class TestEvaluator:
         results['total_losses'] = np.array([l.detach().cpu().item() if torch.is_tensor(l) else l for l in results['total_losses']])
 
         return results
+
+    def plot_loss_training(
+            self,
+            results: Dict,
+            save_path: str = None
+            ):
+        
+        # Criando esse gráfico de treinamento para cada um dos folds    
+        for i in range(len(results["fold_histories"])):
+            
+            loss_history = results["fold_histories"][i]
+            dfLossHistory = pd.DataFrame(loss_history)
+            
+            dfLossHistory["train_roi"] = dfLossHistory["train_components"].apply(lambda x: x["roi"])
+            dfLossHistory["train_heatmap"] = dfLossHistory["train_components"].apply(lambda x: x["heatmap"])
+            dfLossHistory["train_penalty"] = dfLossHistory["train_components"].apply(lambda x: x["penalty"])
+
+            dfLossHistory["val_roi"] = dfLossHistory["val_components"].apply(lambda x: x["roi"])
+            dfLossHistory["val_heatmap"] = dfLossHistory["val_components"].apply(lambda x: x["heatmap"])
+            dfLossHistory["val_penalty"] = dfLossHistory["val_components"].apply(lambda x: x["penalty"])
+                        
+            # 3. Identificar a melhor época (menor Val Loss Total)
+            idx_val_min = dfLossHistory["val_loss"].idxmin()
+            min_val_loss = dfLossHistory.iloc[idx_val_min]["val_loss"]
+            best_epoch = dfLossHistory.iloc[idx_val_min]["epoch"]
+
+            fig, axes = plt.subplots(2, 2, figsize=(10, 8))
+            fig.suptitle(f'Evolução das Losses\nMelhor Época Selecionada: {best_epoch} (Val Loss: {min_val_loss:.4f})', 
+                         fontsize=14, fontweight='bold')
+
+            # Mapeamento para facilitar o loop de plotagem
+            plot_mapping = [
+                {"ax": axes[0, 0], "title": "Total Loss", "train": dfLossHistory["train_loss"], "val": dfLossHistory["val_loss"]},
+                {"ax": axes[0, 1], "title": "ROI Loss", "train": dfLossHistory["train_roi"], "val": dfLossHistory["val_roi"]},
+                {"ax": axes[1, 0], "title": "Heatmap Loss", "train": dfLossHistory["train_heatmap"], "val": dfLossHistory["val_heatmap"]},
+                {"ax": axes[1, 1], "title": "Penalty Loss", "train": dfLossHistory["train_penalty"], "val": dfLossHistory["val_penalty"]}
+            ]
+
+            for item in plot_mapping:
+                ax = item["ax"]
+                
+                # Plota as linhas de treino e validação
+                ax.plot(dfLossHistory["epoch"], item["train"], label='Treino', color='#1f77b4', linewidth=2)
+                ax.plot(dfLossHistory["epoch"], item["val"], label='Validação', color='#ff7f0e', linewidth=2)
+                
+                # Adiciona a estrela vermelha no ponto da melhor época (baseado na Val Loss Total)
+                ax.scatter(best_epoch, item["val"].values[idx_val_min], color='red', marker='*', s=150, zorder=5, 
+                        label=f'Melhor Época ({best_epoch})')
+                
+                # Adiciona a linha vertical tracejada apontando para a época escolhida
+                ax.axvline(x=best_epoch, color='red', linestyle='--', alpha=0.5)
+                
+                # Customizações visuais
+                ax.set_title(item["title"], fontsize=11, fontweight='semibold')
+                ax.set_xlabel('Época')
+                ax.set_ylabel('Loss')
+                ax.grid(True, linestyle=':', alpha=0.6)
+                ax.legend(loc='upper right')
+                
+                # Ajuste do Eixo X para não encavalar números se houverem muitas épocas
+                if len(dfLossHistory["epoch"]) <= 20:
+                    ax.set_xticks(dfLossHistory["epoch"])
+                else:
+                    # Mostra marcações a cada 5 ou 10 épocas dependendo do tamanho
+                    step = max(1, len(dfLossHistory["epoch"]) // 10)
+                    ax.set_xticks(range(min(dfLossHistory["epoch"]), max(dfLossHistory["epoch"]) + 1, step))
+
+            plt.tight_layout()
+
+            # Salvamento e exibição controlada
+            if save_path:
+                plt.savefig(f"{save_path}_fold{i+1}.png", dpi=300, bbox_inches='tight')
+
+            plt.show()
 
     def plot_loss_distributions(
         self,

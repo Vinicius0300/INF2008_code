@@ -24,7 +24,7 @@ class ModelComparator:
                     match = pattern.search(filename)
                     if match:
                         checkpoint_path = os.path.join(root, filename)
-                        results = evaluate_model_on_test(config, checkpoint_path, "", False)
+                        results = evaluate_model_on_test(config, checkpoint_path, metric_path, "", False)
                         self.results[checkpoint_path] = results
 
     def calculate_metrics(self):

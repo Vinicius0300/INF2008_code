@@ -25,11 +25,11 @@ class TrainingConfig:
     test_size: float
     n_folds: int
     dataset_class: Callable
-
     sigma_heatmap: int = 20
+
+    epochs: int = 200
     learning_rate: float = 3e-4
     batch_size: int = 8
-    epochs: int = 200
     patience: int = 5
     lr_patience: float = 1e-10
     optimizer: Callable = torch.optim.Adam

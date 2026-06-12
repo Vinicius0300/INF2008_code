@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Dict, Callable
 
@@ -8,6 +9,7 @@ from src.evalutation.evaluation import TestEvaluator
 def evaluate_model_on_test(
     config: TrainingConfig,
     checkpoint_path: str,
+    metrics_path: str,
     output_dir: str = "",
     show_results: bool = True
 ):
@@ -19,7 +21,6 @@ def evaluate_model_on_test(
         output_dir: Diretório para salvar resultados
         config: Configuração de treinamento
     """
-
     test_dataset = config.dataset_class(
                 video_frame_df = config.df_test,
                 output_dim = config.output_dim,
@@ -45,7 +46,12 @@ def evaluate_model_on_test(
         config=config
     )
 
+    # Pega os dados de loss de todos os folds e todas as épocas:
+    with open(metrics_path, "r", encoding = "utf-8") as file:
+        loss_history = json.load(file)
+
     results = evaluator.evaluate_test_set(test_dataset, loss_calculator)
+    results["loss_history"] = loss_history
 
     if show_results:
 
@@ -57,33 +63,39 @@ def evaluate_model_on_test(
         print("GERANDO VISUALIZAÇÕES")
         print("="*70)
 
-        # 1. Distribuições de loss
+        # 1. Loss do treinamento
+        evaluator.plot_loss_training(
+            results["loss_history"], 
+            save_path = str(output_path / "loss_history")
+        )
+
+        # 2. Distribuições de loss
         evaluator.plot_loss_distributions(
             results,
             save_path=str(output_path / "loss_distributions.png")
         )
 
-        # 2. Análise por keypoint
+        # 3. Análise por keypoint
         evaluator.plot_keypoint_analysis(
             results,
             save_path=str(output_path / "keypoint_analysis.png")
         )
 
-        # 3. Visualizações de predições (por distância)
+        # 4. Visualizações de predições (por distância)
         evaluator.visualize_predictions(
             results,
             metric_type='distance',
             save_path=str(output_path / "predictions_by_distance")
         )
 
-        # 4. Visualizações de predições (por total loss)
+        # 5. Visualizações de predições (por total loss)
         evaluator.visualize_predictions(
             results,
             metric_type='total_loss',
             save_path=str(output_path / "predictions_by_loss")
         )
 
-        # 5. Gera relatório
+        # 6. Gera relatório
         evaluator.generate_report(
             results,
             save_path=str(output_path / "evaluation_report.txt")
