@@ -98,7 +98,7 @@ def holdout(
     print(f"{'='*50}")
     print(f"Média dos Folds: {results['mean_loss']:.4f} ± {results['std_loss']:.4f}")
     print(f"Melhor Fold: {results['best_fold']} (Loss: {results['best_loss']:.4f})")
-
+    
     # Salva resultados
     results_path = config.checkpoint_dir / "metrics_results.json"
     with open(results_path, 'w') as f:

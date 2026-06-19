@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable
 import albumentations as A
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from src.split_data import split_data_k_fold
 from src.utils import (modify_input,
@@ -62,6 +63,7 @@ class TrainingConfig:
     checkpoint_dir: str = field(init=False)
     list_df_folds: list[pd.DataFrame] = field(init=False)
     df_test: pd.DataFrame = field(init=False)
+    id_experiment: int = field(init=False)
 
 
     def __post_init__(self):
@@ -78,12 +80,15 @@ class TrainingConfig:
         video_frame_df["keypoints"] = video_frame_df["target_dir"].apply(load_points)
 
         self.list_df_folds, self.df_test = split_data_k_fold(video_frame_df, test_size=self.test_size, n_folds=self.n_folds)
-
+        
+        # ID do experimento
+        self.id_experiment = f"{int(datetime.now().timestamp())}"
+        
         # Nome do modelo
         if self.width == None:
-            self.model_name = f"{self.model_class.__name__}\\{self.criterion_heatmap.__class__.__name__}_{str(self.epochs)}ep"
+            self.model_name = f"{self.model_class.__name__}\\{self.criterion_heatmap.__class__.__name__}_{str(self.epochs)}ep\\{self.id_experiment}"
         else:
-            self.model_name = f"{self.model_class.__name__}\\{self.criterion_heatmap.__class__.__name__}_{str(self.epochs)}ep_{str(self.width)}W"
+            self.model_name = f"{self.model_class.__name__}\\{self.criterion_heatmap.__class__.__name__}_{str(self.epochs)}ep_{str(self.width)}W\\{self.id_experiment}"
 
         # Checkpoint dos Modelos
         self.checkpoint_dir = f"data\\model_weights\\{self.model_name}"

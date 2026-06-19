@@ -1,6 +1,6 @@
 import pandas as pd
-from datetime import datetime
 import os
+from datetime import datetime
 
 from src.training.config import TrainingConfig
 
@@ -28,7 +28,7 @@ def att_test_control(val_type: str,
 
     excel_row_data = {
         # Metadados
-        "ID Teste": [f"EXP-{int(datetime.now().timestamp())}"],
+        "ID Teste": [config.id_experiment],
         "Data/Hora": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
         "Nome do Modelo": [config.model_class.__name__],
         "Tipo de Validação": [val_type],
