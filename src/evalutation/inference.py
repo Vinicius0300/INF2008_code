@@ -10,6 +10,7 @@ def evaluate_model_on_test(
     config: TrainingConfig,
     checkpoint_path: str,
     metrics_path: str,
+    fold_number: int = 1,
     output_dir: str = "",
     show_results: bool = True
 ):
@@ -65,7 +66,8 @@ def evaluate_model_on_test(
 
         # 1. Loss do treinamento
         evaluator.plot_loss_training(
-            results["loss_history"], 
+            results["loss_history"],
+            fold_number,
             save_path = str(output_path / "loss_history")
         )
 
