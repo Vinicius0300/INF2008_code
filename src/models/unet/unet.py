@@ -16,7 +16,6 @@ class DoubleConv(nn.Module):
     def forward(self, x):
         return self.conv_op(x)
 
-
 class DownSample(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -29,7 +28,6 @@ class DownSample(nn.Module):
 
         return down, p  # O "down" é o valor que será passado pela skip connection
 
-
 class UpSample(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -40,8 +38,7 @@ class UpSample(nn.Module):
        x1 = self.up(x1)
        x = torch.cat([x1, x2], 1)
        return self.conv(x)
-    
-    
+
 class UNet(nn.Module):
     def __init__(self, in_channels=3, num_keypoints=2, return_mode="both"):
         super().__init__()
@@ -56,9 +53,9 @@ class UNet(nn.Module):
         self.up_convolution_2 = UpSample(512, 256)
         self.up_convolution_3 = UpSample(256, 128)
         self.up_convolution_4 = UpSample(128, 64)
-        
+
         #self.out = nn.Conv2d(in_channels=64, out_channels=num_keypoints, kernel_size=1) # Return "num_keypoints" heatmaps
-        
+
         # Head 1: ROI
         self.head_roi = nn.Conv2d(in_channels=64, out_channels=1, kernel_size=1)
         # Head 2: Keypoints
@@ -86,12 +83,12 @@ class UNet(nn.Module):
         if self.return_mode == "both":
             roi = self.head_roi(up_4)
             kp = torch.sigmoid(self.head_kp(up_4))
-            return roi, kp
+            return roi, kp, None
         elif self.return_mode == "heatmap_only":
             kp = torch.sigmoid(self.head_kp(up_4))
-            return None, kp
+            return None, kp, None
         elif self.return_mode == "roi_only":
             roi = self.head_roi(up_4)
-            return roi, None
+            return roi, None, None
         else:
             raise Exception(f"return_mode selecionado é inválido - {self.return_mode}")

@@ -84,7 +84,7 @@ class HighResolutionModule(nn.Module):
     def forward(self, x):
         for i in range(self.num_branches):
             x[i] = self.branches[i](x[i])
-        
+
         x_fuse = []
         for i in range(len(self.fuse_layers)):
             y = x[0] if i == 0 else self.fuse_layers[i][0](x[0])
@@ -110,10 +110,10 @@ class FullHRNet(nn.Module):
 
         # Stage 1 (Simplificado para este exemplo)
         self.layer1 = nn.Sequential(BasicBlock(64, 64), BasicBlock(64, 64))
-        
+
         # Canais das ramificações (ex: 32, 64, 128)
         self.num_channels = [32, 64, 128]
-        
+
         # Camada de transição para criar as 3 resoluções
         self.transition = nn.ModuleList([
             nn.Sequential(nn.Conv2d(64, 32, 3, 1, 1, bias=False), nn.BatchNorm2d(32), nn.ReLU(True)),
@@ -142,13 +142,13 @@ class FullHRNet(nn.Module):
         x = self.relu(self.bn1(self.conv1(x)))
         x = self.relu(self.bn2(self.conv2(x)))
         x = self.layer1(x)
-        
+
         # Criar ramificações paralelas
         x_list = [trans(x) for trans in self.transition]
-        
+
         # Fusão HRNet
         x_list = self.high_res_module(x_list)
-        
+
         # Pegamos o fluxo de maior resolução (112x112) e aplicamos o head para 448x448
         out = self.full_res_head(x_list[0])
-        return None, out
+        return None, out, None

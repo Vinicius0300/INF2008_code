@@ -51,9 +51,11 @@ class TrainingConfig:
 
     criterion_roi: Callable = None
     criterion_heatmap: Callable = None
+    criterion_keypoints: Callable = None
     weight_roi: float = 0.4        # 0.4
     weight_heatmap: float = 0.4    # 0.5
     weight_penalty: float = 0.2    # 0.1
+    weight_keypoints: float = 0.0  # 0.0
 
     device: str = "cuda"
     predict_roi: bool = True
@@ -70,8 +72,9 @@ class TrainingConfig:
     def __post_init__(self):
 
         # Instancia uma nova loss por Config — evita compartilhamento de estado
-        self.criterion_roi      = self.criterion_roi      if self.criterion_roi      is not None else nn.BCELoss()
-        self.criterion_heatmap  = self.criterion_heatmap  if self.criterion_heatmap  is not None else nn.MSELoss()
+        self.criterion_roi       = self.criterion_roi      if self.criterion_roi      is not None else nn.BCELoss()
+        self.criterion_heatmap   = self.criterion_heatmap  if self.criterion_heatmap  is not None else nn.MSELoss()
+        self.criterion_keypoints = self.criterion_keypoints  if self.criterion_keypoints  is not None else nn.MSELoss()
 
         # Data frame - Conjunto de Teste e Folds
         root = get_project_root_directory()
@@ -81,10 +84,10 @@ class TrainingConfig:
         video_frame_df["keypoints"] = video_frame_df["target_dir"].apply(load_points)
 
         self.list_df_folds, self.df_test = split_data_k_fold(video_frame_df, test_size=self.test_size, n_folds=self.n_folds)
-        
+
         # ID do experimento
         self.id_experiment = f"{int(datetime.now().timestamp())}"
-        
+
         # Nome do modelo
         if self.width == None:
             self.model_name = f"{self.model_class.__name__}\\{self.criterion_heatmap.__class__.__name__}_{str(self.epochs)}ep\\{self.id_experiment}"

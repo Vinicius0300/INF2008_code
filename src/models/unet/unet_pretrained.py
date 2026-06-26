@@ -31,7 +31,7 @@ class DownSample(nn.Module):
 
         return down, p  # O "down" é o valor que será passado pela skip connection
 
-    
+
 class UpSample(nn.Module):
     def __init__(self, in_channels, skip_channels, out_channels):
         super().__init__()
@@ -42,13 +42,13 @@ class UpSample(nn.Module):
         x1 = self.up(x1)
         x = torch.cat([x1, x2], 1)
         return self.conv(x)
-    
-    
+
+
 class UNet_ImageNet(nn.Module):
     def __init__(self, num_keypoints=2, in_channels=1, return_mode="both"):
         super().__init__()
         base_model = models.resnet18(weights='IMAGENET1K_V1')
-        
+
         # 1. Ajuste do Input para Grayscale
         if in_channels != 3:
             old_weight = base_model.conv1.weight.data
@@ -58,7 +58,7 @@ class UNet_ImageNet(nn.Module):
 
         # 2. Encoder (ResNet18)
         self.enc1 = nn.Sequential(base_model.conv1, base_model.bn1, base_model.relu) # 64
-        self.maxpool = base_model.maxpool 
+        self.maxpool = base_model.maxpool
         self.layer1 = base_model.layer1 # 64
         self.layer2 = base_model.layer2 # 128
         self.layer3 = base_model.layer3 # 256
@@ -71,9 +71,9 @@ class UNet_ImageNet(nn.Module):
 
 
         # 4. Decoder (Canais Corrigidos para Concatenação)
-        # UpSample(In_Canais, Out_Canais) 
+        # UpSample(In_Canais, Out_Canais)
         # Up 1: Recebe 1024, reduz p/ 512, concatena com e4 (256). Saída: 512.
-        self.up_convolution_1 = UpSample(1024, 256, 512) 
+        self.up_convolution_1 = UpSample(1024, 256, 512)
 
         # Up 2: Recebe 512, reduz p/ 256, concatena com e3 (128). Saída: 256.
         self.up_convolution_2 = UpSample(512, 128, 256)
@@ -84,7 +84,7 @@ class UNet_ImageNet(nn.Module):
         # Up 4: Recebe 128, reduz p/ 64, concatena com e1 (64). Saída: 64.
         self.up_convolution_4 = UpSample(128, 64, 64)
 
-        
+
         self.head_roi = nn.Conv2d(64, 1, kernel_size=1)
         self.head_kp = nn.Conv2d(64, num_keypoints, kernel_size=1)
 
@@ -98,7 +98,7 @@ class UNet_ImageNet(nn.Module):
         # Encoder
         e1 = self.enc1(x)      # 64 canais, res 1/2
         p1 = self.maxpool(e1)  # 64 canais, res 1/4
-        
+
         e2 = self.layer1(p1)   # 64 canais, res 1/4
         e3 = self.layer2(e2)   # 128 canais, res 1/8
         e4 = self.layer3(e3)   # 256 canais, res 1/16
@@ -119,12 +119,12 @@ class UNet_ImageNet(nn.Module):
         if self.return_mode == "both":
             roi = self.head_roi(out)
             kp = torch.sigmoid(self.head_kp(out))
-            return roi, kp
+            return roi, kp, None
         elif self.return_mode == "heatmap_only":
             kp = torch.sigmoid(self.head_kp(out))
-            return None, kp
+            return None, kp, None
         elif self.return_mode == "roi_only":
             roi = self.head_roi(out)
-            return roi, None
+            return roi, None, None
         else:
             raise Exception(f"return_mode selecionado é inválido - {self.return_mode}")

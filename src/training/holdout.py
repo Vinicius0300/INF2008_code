@@ -75,7 +75,7 @@ def holdout(
     final_val_loss, _ = validate(
         model,
         val_loader,
-        LossCalculator(config.criterion_roi, config.criterion_heatmap, config),
+        LossCalculator(config),
         config
     )
 

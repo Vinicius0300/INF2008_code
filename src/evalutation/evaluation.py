@@ -80,6 +80,7 @@ class TestEvaluator:
             'keypoint_distances': [[] for _ in range(num_keypoints)],
             'heatmap_losses': [],
             'roi_losses': [],
+            'keypoint_losses': [],
             'total_losses': [],
             'predictions': [],
             'ground_truths': [],
@@ -99,19 +100,25 @@ class TestEvaluator:
 
             gt_roi = roi.float().to(self.device)
             gt_heatmap = heatmap.float().to(self.device)
+            gt_keypoints = torch.tensor(keypoint).to(self.device)
 
             # Inferência
             with torch.no_grad():
-                pred_roi, pred_heatmap = self.model(input_tensor)
+                pred_roi, pred_heatmap, pred_keypoints = self.model(input_tensor)
 
             if pred_heatmap is not None:
                 pred_heatmap = pred_heatmap.squeeze(0)
             if pred_roi is not None:
                 pred_roi = pred_roi.squeeze(0)
+            if pred_keypoints is not None:
+                pred_keypoints = pred_keypoints.squeeze(0)
 
             # Extrai pontos
-            gt_points = self.extract_keypoints_from_heatmap(gt_heatmap)
-            if pred_heatmap is not None:
+            # gt_points = self.extract_keypoints_from_heatmap(gt_heatmap)
+            gt_points = gt_keypoints
+            if pred_keypoints is not None:
+                pred_points = pred_keypoints
+            elif pred_heatmap is not None:
                 pred_points = self.extract_keypoints_from_heatmap(pred_heatmap, pred_roi)
             else:
                 pred_points = torch.tensor([[0.0, 0.0], [0.0, 0.0]]) # Só pra ter alguma coisa, mas de fato nada é previsto.
@@ -123,9 +130,10 @@ class TestEvaluator:
 
             # Calcula losses
             loss_total, components = loss_calculator.calculate_loss(
-                pred_roi, pred_heatmap, gt_roi, gt_heatmap
+                pred_roi, pred_heatmap, pred_points, gt_roi, gt_heatmap, gt_points
             )
 
+            results['keypoint_losses'].append(components['keypoints'])
             results['heatmap_losses'].append(components['heatmap'])
             results['roi_losses'].append(components['roi'])
             results['total_losses'].append(loss_total.item())
@@ -134,18 +142,21 @@ class TestEvaluator:
             results['predictions'].append({
                 'points': pred_points,
                 'heatmap': pred_heatmap.cpu() if pred_heatmap != None else None,
-                'roi': pred_roi.cpu() if pred_roi != None else None
+                'roi': pred_roi.cpu() if pred_roi != None else None,
+                'keypoint': pred_keypoints.cpu() if pred_keypoints != None else None
             })
             results['ground_truths'].append({
                 'points': gt_points,
                 'heatmap': gt_heatmap.cpu(),
-                'roi': gt_roi.cpu()
+                'roi': gt_roi.cpu(),
+                'keypoint': gt_keypoints.cpu()
             })
             results['images'].append(input_tensor.squeeze(0).cpu())
 
         # Converte para arrays
         results['keypoint_distances'] = [np.array(dist) for dist in results['keypoint_distances']]
         # Usamos list comprehension para garantir .cpu().numpy() em cada tensor da lista
+        results['keypoint_losses'] = np.array([l.detach().cpu().item() if torch.is_tensor(l) else l for l in results['keypoint_losses']])
         results['heatmap_losses'] = np.array([l.detach().cpu().item() if torch.is_tensor(l) else l for l in results['heatmap_losses']])
         results['roi_losses'] = np.array([l.detach().cpu().item() if torch.is_tensor(l) else l for l in results['roi_losses']])
         results['total_losses'] = np.array([l.detach().cpu().item() if torch.is_tensor(l) else l for l in results['total_losses']])
@@ -158,24 +169,26 @@ class TestEvaluator:
             fold_number: int = 1,
             save_path: str = None
             ):
-                   
+
         loss_history = results["fold_histories"][fold_number-1]
         dfLossHistory = pd.DataFrame(loss_history)
-        
+
+        dfLossHistory["train_keypoints"] = dfLossHistory["train_components"].apply(lambda x: x["keypoints"])
         dfLossHistory["train_roi"] = dfLossHistory["train_components"].apply(lambda x: x["roi"])
         dfLossHistory["train_heatmap"] = dfLossHistory["train_components"].apply(lambda x: x["heatmap"])
         dfLossHistory["train_penalty"] = dfLossHistory["train_components"].apply(lambda x: x["penalty"])
 
+        dfLossHistory["val_keypoints"] = dfLossHistory["val_components"].apply(lambda x: x["keypoints"])
         dfLossHistory["val_roi"] = dfLossHistory["val_components"].apply(lambda x: x["roi"])
         dfLossHistory["val_heatmap"] = dfLossHistory["val_components"].apply(lambda x: x["heatmap"])
         dfLossHistory["val_penalty"] = dfLossHistory["val_components"].apply(lambda x: x["penalty"])
-                    
+
         # 3. Identificar a melhor época (menor Val Loss Total)
         idx_val_min = dfLossHistory["val_loss"].idxmin()
         min_val_loss = dfLossHistory.iloc[idx_val_min]["val_loss"]
         best_epoch = dfLossHistory.iloc[idx_val_min]["epoch"]
 
-        fig, axes = plt.subplots(2, 2, figsize=(10, 8))
+        fig, axes = plt.subplots(2, 3, figsize=(10, 8))
         fig.suptitle(f'Evolução das Losses\nMelhor Época Selecionada: {best_epoch} (Val Loss: {min_val_loss:.4f})', 
                         fontsize=14, fontweight='bold')
 
@@ -183,31 +196,32 @@ class TestEvaluator:
         plot_mapping = [
             {"ax": axes[0, 0], "title": "Total Loss", "train": dfLossHistory["train_loss"], "val": dfLossHistory["val_loss"]},
             {"ax": axes[0, 1], "title": "ROI Loss", "train": dfLossHistory["train_roi"], "val": dfLossHistory["val_roi"]},
-            {"ax": axes[1, 0], "title": "Heatmap Loss", "train": dfLossHistory["train_heatmap"], "val": dfLossHistory["val_heatmap"]},
-            {"ax": axes[1, 1], "title": "Penalty Loss", "train": dfLossHistory["train_penalty"], "val": dfLossHistory["val_penalty"]}
+            {"ax": axes[0, 2], "title": "Heatmap Loss", "train": dfLossHistory["train_heatmap"], "val": dfLossHistory["val_heatmap"]},
+            {"ax": axes[1, 0], "title": "Keypoint Loss", "train": dfLossHistory["train_keypoint"], "val": dfLossHistory["val_keypoint"]},
+            {"ax": axes[1, 0], "title": "Penalty Loss", "train": dfLossHistory["train_penalty"], "val": dfLossHistory["val_penalty"]}
         ]
 
         for item in plot_mapping:
             ax = item["ax"]
-            
+
             # Plota as linhas de treino e validação
             ax.plot(dfLossHistory["epoch"], item["train"], label='Treino', color='#1f77b4', linewidth=2)
             ax.plot(dfLossHistory["epoch"], item["val"], label='Validação', color='#ff7f0e', linewidth=2)
-            
+
             # Adiciona a estrela vermelha no ponto da melhor época (baseado na Val Loss Total)
-            ax.scatter(best_epoch, item["val"].values[idx_val_min], color='red', marker='*', s=150, zorder=5, 
+            ax.scatter(best_epoch, item["val"].values[idx_val_min], color='red', marker='*', s=150, zorder=5,
                     label=f'Melhor Época ({best_epoch})')
-            
+
             # Adiciona a linha vertical tracejada apontando para a época escolhida
             ax.axvline(x=best_epoch, color='red', linestyle='--', alpha=0.5)
-            
+
             # Customizações visuais
             ax.set_title(item["title"], fontsize=11, fontweight='semibold')
             ax.set_xlabel('Época')
             ax.set_ylabel('Loss')
             ax.grid(True, linestyle=':', alpha=0.6)
             ax.legend(loc='upper right')
-            
+
             # Ajuste do Eixo X para não encavalar números se houverem muitas épocas
             if len(dfLossHistory["epoch"]) <= 20:
                 ax.set_xticks(dfLossHistory["epoch"])
@@ -237,7 +251,7 @@ class TestEvaluator:
         # 1. Heatmap Loss
         ax = axes[0, 0]
         ax.hist(results['heatmap_losses'], bins=30, color='skyblue', edgecolor='black', alpha=0.7)
-        ax.axvline(np.mean(results['heatmap_losses']), color='red', linestyle='--', 
+        ax.axvline(np.mean(results['heatmap_losses']), color='red', linestyle='--',
                    label=f'Média: {np.mean(results["heatmap_losses"]):.4f}')
         ax.axvline(np.median(results['heatmap_losses']), color='green', linestyle='--',
                    label=f'Mediana: {np.median(results["heatmap_losses"]):.4f}')
@@ -262,7 +276,7 @@ class TestEvaluator:
 
         # 3. Scatter: Heatmap vs Total Loss
         ax = axes[1, 0]
-        ax.scatter(results['heatmap_losses'], results['total_losses'], 
+        ax.scatter(results['heatmap_losses'], results['total_losses'],
                   alpha=0.5, s=20, color='purple')
 
         # Adiciona linha de tendência

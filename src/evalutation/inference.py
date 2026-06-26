@@ -71,8 +71,6 @@ def evaluate_model_on_test(
 
     # Avalia conjunto de teste
     loss_calculator = LossCalculator(
-        criterion_roi=config.criterion_roi,
-        criterion_heatmap=config.criterion_heatmap,
         config=config
     )
 

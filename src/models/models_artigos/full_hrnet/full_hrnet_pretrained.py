@@ -172,4 +172,4 @@ class FullHRNet_ImageNet(nn.Module):
 
         # Pegamos o fluxo de maior resolução (112x112) e aplicamos o head para 448x448
         out = self.full_res_head(x_list[0])
-        return None, out
+        return None, out, None

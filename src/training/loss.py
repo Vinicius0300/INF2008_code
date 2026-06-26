@@ -47,30 +47,42 @@ class FocalMSEMaskedLoss(nn.Module):
 
 class LossCalculator:
     """Centraliza o cálculo de perdas"""
-    def __init__(self, criterion_roi, criterion_heatmap, config: TrainingConfig):
-        self.criterion_roi = criterion_roi
-        self.criterion_heatmap = criterion_heatmap
+    def __init__(self, config: TrainingConfig):
+        self.criterion_roi = config.criterion_roi
+        self.criterion_heatmap = config.criterion_heatmap
+        self.criterion_keypoints = config.criterion_keypoints
         self.config = config
 
-    def calculate_loss(self, pred_roi, pred_heatmap, gt_roi, gt_heatmap):
-        if pred_roi == None:
+    def calculate_loss(self,
+                       pred_roi, pred_heatmap, pred_keypoints,
+                       gt_roi, gt_heatmap, gt_keypoints):
+
+
+        if pred_roi is None:
             loss_roi = torch.tensor(0.0, device=gt_roi.device)
         else:
             loss_roi = self.criterion_roi(pred_roi, gt_roi)
 
-        if pred_heatmap == None:
+        if pred_heatmap is None:
             loss_heatmap = torch.tensor(0.0, device=gt_heatmap.device)
             mask_penalty = torch.tensor(0.0, device=gt_heatmap.device)
         else:
             loss_heatmap = self.criterion_heatmap(pred_heatmap, gt_heatmap)
-
             # Avisa o PyTorch que (1 - gt_roi) é estático
             with torch.no_grad():
                 inv_gt_roi = 1.0 - gt_roi
 
             mask_penalty = torch.mean(pred_heatmap * inv_gt_roi)
 
+
+        if pred_keypoints is None:
+            loss_keypoints = torch.tensor(0.0, device = gt_keypoints.device)
+        else:
+            loss_keypoints = self.criterion_keypoints(pred_keypoints, gt_keypoints)
+
+
         loss_total = (
+            self.config.weight_keypoints * loss_keypoints +
             self.config.weight_roi * loss_roi +
             self.config.weight_heatmap * loss_heatmap +
             self.config.weight_penalty * mask_penalty
@@ -79,5 +91,6 @@ class LossCalculator:
         return loss_total, {
             'roi': loss_roi,
             'heatmap': loss_heatmap,
-            'penalty': mask_penalty
+            'penalty': mask_penalty,
+            'keypoints':loss_keypoints
         }

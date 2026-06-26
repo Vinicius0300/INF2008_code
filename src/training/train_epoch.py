@@ -38,13 +38,15 @@ def train_one_epoch(
             inputs = config.modify_input_fn(inputs)
         gt_heatmap = heatmaps.to(config.device, non_blocking=True)
         gt_roi = roi.to(config.device, non_blocking=True)
+        gt_keypoints = keypoints.to(config.device, non_blocking=True)
 
         # Forward pass com ou sem mixed precision
         if scaler is not None:
             with torch.cuda.amp.autocast():
-                pred_roi, pred_heatmap = model(inputs)
+                pred_roi, pred_heatmap, pred_keypoints = model(inputs)
                 loss_total, components = loss_calculator.calculate_loss(
-                    pred_roi, pred_heatmap, gt_roi, gt_heatmap
+                    pred_roi, pred_heatmap, pred_keypoints,
+                    gt_roi, gt_heatmap, gt_keypoints
                 )
 
             # Dividir loss pela acumulação
@@ -54,9 +56,10 @@ def train_one_epoch(
             scaler.scale(loss_scaled).backward()
 
         else:
-            pred_roi, pred_heatmap = model(inputs)
+            pred_roi, pred_heatmap, pred_keypoints = model(inputs)
             loss_total, components = loss_calculator.calculate_loss(
-                pred_roi, pred_heatmap, gt_roi, gt_heatmap
+                pred_roi, pred_heatmap, pred_keypoints,
+                gt_roi, gt_heatmap, gt_keypoints
             )
 
             loss_scaled = loss_total / accumulation_steps

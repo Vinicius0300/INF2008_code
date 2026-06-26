@@ -28,7 +28,7 @@ def train_one_fold(
         **config.scheduler_kwargs
     )
 
-    loss_calculator = LossCalculator(config.criterion_roi, config.criterion_heatmap, config)
+    loss_calculator = LossCalculator(config)
     checkpoint_manager = CheckpointManager(config.checkpoint_dir, fold)
 
     # Tracking

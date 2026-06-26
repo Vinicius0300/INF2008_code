@@ -33,7 +33,7 @@ class VFSSImageDataset():
         transforma:     Transformação que será aplicada no problema (SOMENTE NOS DADOS DE TREINO)
         sigma_heatmap:  aplicado na distribuição gaussiana que gera os heatmaps
         '''
-        
+
         self.video_frame_df = video_frame_df.reset_index(drop=True).copy()
         self.sigma_heatmap = sigma_heatmap
         self.output_dim = output_dim
@@ -43,7 +43,7 @@ class VFSSImageDataset():
     # No seu __getitem__, altere o carregamento inicial para isto:
     def __getitem__(self, idx:int):
         row = self.video_frame_list[idx]
-        
+
         # Como agora é um dicionário, acessamos pelas chaves
         frame_path = row['frame_path']
         keypoints = row['keypoints']
@@ -51,7 +51,7 @@ class VFSSImageDataset():
         # Usando OpenCV direto (MUITO mais rápido para ler do disco)
         # cv2.IMREAD_GRAYSCALE já carrega em 1 canal
         image = cv2.imread(frame_path, cv2.IMREAD_GRAYSCALE)
-        
+
         if image is None:
             raise FileNotFoundError(f"Imagem não encontrada: {frame_path}")
 
@@ -71,13 +71,13 @@ class VFSSImageDataset():
             image = torch.from_numpy(image).permute(2, 0, 1).float()
 
         # Calcula Heatmap e Roi com base nos Keypoints Transformados
-        h, w = self.output_dim    
+        h, w = self.output_dim
         roi = generate_roi_from_points(keypoints, h, w)
         heatmaps = generate_heatmap_from_points(keypoints, self.output_dim, self.sigma_heatmap)
         image = image.float() / 255.0
 
         return image, keypoints, heatmaps, roi
-    
+
     # Retorna o Tamanho da Base considera
     def __len__(self):
         return self.video_frame_df.shape[0]
@@ -110,9 +110,9 @@ class VFSSImageDataset():
             if isinstance(roi, torch.Tensor):
                 roi = roi.squeeze().cpu().numpy()  # (H, W)
             plt.contour(roi, colors='lime', linewidths=1)
-        
+
         # Mostra Keypoints
-        if display_keypoints:       
+        if display_keypoints:
             keypoints = np.array(keypoints) # keypoints (pontos vermelhos)
             plt.scatter(keypoints[:, 0], keypoints[:, 1], c='red', s=20)
 

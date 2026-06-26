@@ -31,11 +31,13 @@ def validate(
                 inputs = config.modify_input_fn(inputs)
             gt_heatmap = heatmaps.to(config.device)
             gt_roi = roi.to(config.device)
+            gt_keypoints = keypoints.to(config.device)
 
-            pred_roi, pred_heatmap = model(inputs)
+            pred_roi, pred_heatmap, pred_keypoints = model(inputs)
 
             loss_total, components = loss_calculator.calculate_loss(
-                pred_roi, pred_heatmap, gt_roi, gt_heatmap
+                pred_roi, pred_heatmap, pred_keypoints,
+                gt_roi, gt_heatmap, gt_keypoints
             )
 
             val_loss += loss_total
