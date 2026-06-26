@@ -27,7 +27,7 @@ def get_script_directory() -> str:
 def get_project_root_directory() -> str:
     '''Get the root directory of the project (assumed to be the parent of the script directory).'''
     script_dir = get_script_directory()
-    
+
     if not PROJECT_NAME in script_dir:
         raise RuntimeError(f"Cannot determine project root directory. '{PROJECT_NAME}' not found in script path.")
 
@@ -56,7 +56,7 @@ def get_corners_from_angle(x: float, y: float, w: float, h: float, angle_degrees
     else:
         p1 = corners['top_left']
         p2 = corners['bottom_right']
-    
+
     points = np.array([p1, p2])
     return points
 
@@ -135,7 +135,7 @@ def plot_image_with_mask(frame, mask, plot_mask=True, size_inches=8, alpha_mask=
     if plot_mask and mask != None:
         mask_np = mask.permute(1, 2, 0).numpy().astype(bool)
         masked_image = draw_mask(frame_np, mask_np, color=color, alpha_mask=alpha_mask)
-    else: 
+    else:
         masked_image = frame_np
 
     # Return a matplotlib figure
@@ -158,17 +158,17 @@ def clahe(img):
 def modify_input(img):
     # Garante o formato (B, C, H, W)
     if len(img.shape) != 4:
-        img = img.unsqueeze(0) 
-      
+        img = img.unsqueeze(0)
+
     # Aplica CLAHE no batch inteiro
     img_clahe = kornia.enhance.equalize_clahe(img, clip_limit=5.0)
-    
+
     # Aplica Double CLAHE no batch inteiro
     img_double_clahe = kornia.enhance.equalize_clahe(img_clahe, clip_limit=5.0)
 
     # Empilha os canais para formar (B, 3, H, W)
     img_new = torch.cat([img, img_clahe, img_double_clahe], dim=1)
-    
+
     return img_new
 
 def custom_collate_fn(batch):

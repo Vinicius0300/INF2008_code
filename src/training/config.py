@@ -36,6 +36,7 @@ class TrainingConfig:
     optimizer: Callable = torch.optim.Adam
     optimizer_kwargs: dict = field(default_factory=dict)
     scheduler: Callable = torch.optim.lr_scheduler.ReduceLROnPlateau
+    scheduler_kwargs: dict = field(default_factory=dict)
 
     offline_augmentation: bool = False
     transform_augmentation: A.Compose | None = None

@@ -25,9 +25,7 @@ def train_one_fold(
                                  **config.optimizer_kwargs)
     scheduler = config.scheduler(
         optimizer,
-        mode="min",
-        factor=0.1,
-        patience=config.patience // 3,  # Quando ver que o negócio tá ficando esquisito, mexe.
+        **config.scheduler_kwargs
     )
 
     loss_calculator = LossCalculator(config.criterion_roi, config.criterion_heatmap, config)

@@ -1,10 +1,39 @@
 import json
+import re
+import os
+import pickle
 from pathlib import Path
 from typing import Dict, Callable
 
 from src.training.config import TrainingConfig
 from src.training.loss import LossCalculator
 from src.evalutation.evaluation import TestEvaluator
+
+def display_inference(path_config: str):
+
+    # Lendo Arquivo de Configuração
+    with open(path_config, 'rb') as f:
+        config = pickle.load(f)
+
+    # Exibe as inferências de cada um dos folds
+    root = config.checkpoint_dir
+    pattern = re.compile(r"fold_([1-9])_best\.pth$")
+    if os.path.exists(root):
+        for filename in os.listdir(root):
+            match = pattern.search(filename)
+            if match:
+                fold_number = int(match.group(1))
+                checkpoint_path = os.path.join(root, filename)
+                metrics_path = os.path.join(root, "metrics_results.json")
+
+                # Executa avaliação completa
+                results = evaluate_model_on_test(
+                    config=config,
+                    checkpoint_path=checkpoint_path,
+                    metrics_path=metrics_path,
+                    fold_number = fold_number,
+                    output_dir=f"figs\\{config.model_name}\\fold{fold_number}"
+                )
 
 def evaluate_model_on_test(
     config: TrainingConfig,
