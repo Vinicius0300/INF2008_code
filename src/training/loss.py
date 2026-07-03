@@ -63,6 +63,7 @@ class LossCalculator:
         else:
             loss_roi = self.criterion_roi(pred_roi, gt_roi)
 
+
         if pred_heatmap is None:
             loss_heatmap = torch.tensor(0.0, device=gt_heatmap.device)
             mask_penalty = torch.tensor(0.0, device=gt_heatmap.device)

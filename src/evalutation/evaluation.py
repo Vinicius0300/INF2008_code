@@ -114,14 +114,14 @@ class TestEvaluator:
                 pred_keypoints = pred_keypoints.squeeze(0)
 
             # Extrai pontos
-            # gt_points = self.extract_keypoints_from_heatmap(gt_heatmap)
             gt_points = gt_keypoints
             if pred_keypoints is not None:
                 pred_points = pred_keypoints
             elif pred_heatmap is not None:
                 pred_points = self.extract_keypoints_from_heatmap(pred_heatmap, pred_roi)
             else:
-                pred_points = torch.tensor([[0.0, 0.0], [0.0, 0.0]]) # Só pra ter alguma coisa, mas de fato nada é previsto.
+                pred_points = None
+            pred_points = pred_points.to(self.device)
 
             # Calcula distâncias por keypoint
             for k in range(num_keypoints):
@@ -140,13 +140,13 @@ class TestEvaluator:
 
             # Armazena para visualização
             results['predictions'].append({
-                'points': pred_points,
+                'points': pred_points.cpu() if pred_points != None else None,
                 'heatmap': pred_heatmap.cpu() if pred_heatmap != None else None,
                 'roi': pred_roi.cpu() if pred_roi != None else None,
                 'keypoint': pred_keypoints.cpu() if pred_keypoints != None else None
             })
             results['ground_truths'].append({
-                'points': gt_points,
+                'points': gt_points.cpu(),
                 'heatmap': gt_heatmap.cpu(),
                 'roi': gt_roi.cpu(),
                 'keypoint': gt_keypoints.cpu()
@@ -197,7 +197,7 @@ class TestEvaluator:
             {"ax": axes[0, 0], "title": "Total Loss", "train": dfLossHistory["train_loss"], "val": dfLossHistory["val_loss"]},
             {"ax": axes[0, 1], "title": "ROI Loss", "train": dfLossHistory["train_roi"], "val": dfLossHistory["val_roi"]},
             {"ax": axes[0, 2], "title": "Heatmap Loss", "train": dfLossHistory["train_heatmap"], "val": dfLossHistory["val_heatmap"]},
-            {"ax": axes[1, 0], "title": "Keypoint Loss", "train": dfLossHistory["train_keypoint"], "val": dfLossHistory["val_keypoint"]},
+            {"ax": axes[1, 0], "title": "Keypoint Loss", "train": dfLossHistory["train_keypoints"], "val": dfLossHistory["val_keypoints"]},
             {"ax": axes[1, 0], "title": "Penalty Loss", "train": dfLossHistory["train_penalty"], "val": dfLossHistory["val_penalty"]}
         ]
 
@@ -406,7 +406,7 @@ class TestEvaluator:
 
                 # Ground truth
                 gt_point = results['ground_truths'][idx]['points'][k]
-                ax_img.scatter(gt_point[1], gt_point[0], color='lime', marker='x', 
+                ax_img.scatter(gt_point[1], gt_point[0], color='lime', marker='x',
                               s=150, linewidths=3, label='Ground Truth')
 
                 # Predição

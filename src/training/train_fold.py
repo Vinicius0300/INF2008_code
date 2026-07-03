@@ -68,7 +68,8 @@ def train_one_fold(
         print(f"Época {epoch+1}/{config.epochs}")
         print(f"  Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
         print(f"  Val Components - ROI: {val_components['roi']:.4f}, "
-              f"Heatmap: {val_components['heatmap']:.4f}, "
+              f"Heatmap: {val_components['heatmap']:.4f},"
+              f"Keypoints: {val_components['keypoints']:.4f}"
               f"Penalty: {val_components['penalty']:.4f}")
 
         # Scheduler Early Stopping (Learning Rate)

@@ -2,6 +2,7 @@ import pandas as pd
 import json
 import numpy as np
 import os
+import pickle
 from torch.utils.data import DataLoader
 from typing import Dict, List, Tuple, Callable
 
@@ -73,6 +74,13 @@ def cross_validate(
         model = config.model_class(**model_kwargs)
         model.apply(init_weights)
         model.to(config.device)
+
+        # Garante que tem lugar para salvar os checkpoints de treino:
+        config.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+        # Salvando configurações para criação/treinamento do modelo
+        with open(os.path.join(config.checkpoint_dir,'config.pkl'), 'wb') as f:
+            pickle.dump(config, f)
 
         # Treina fold
         model, history = train_one_fold(

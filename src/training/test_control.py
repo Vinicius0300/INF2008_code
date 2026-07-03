@@ -32,22 +32,25 @@ def att_test_control(val_type: str,
         "Data/Hora": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
         "Nome do Modelo": [config.model_class.__name__],
         "Tipo de Validação": [val_type],
-        
+
         # DNA do Dataset (Comparabilidade)
         "Dataset Base": [config.path_dataframe],
         "Qtd Imagens Treino": [len(df_train)],
         "Resolução Input": [f"{config.output_dim[0]}x{config.output_dim[1]}"],
         "Augmentation Tipo": [aug_status],
         "Transforms Aplicadas": [", ".join(train_transforms)],
-        
+
         # Hiperparâmetros (Vindos da sua classe TrainingConfig)
         "Optimizer": [config.optimizer.__name__],
         "Learning Rate": [config.learning_rate],
         "Batch Size": [config.batch_size],
         "Epochs Máximas": [config.epochs],
         "Patience": [config.patience],
-        "Pesos de Loss (ROI/Heat/Pen)": [f"{config.weight_roi} / {config.weight_heatmap} / {config.weight_penalty}"],
-        
+        "Pesos de Loss (ROI/Heat/Pen/Keyp)": [f"{config.weight_roi} / {config.weight_heatmap} / {config.weight_penalty} / {config.weight_keypoints}"],
+        "Loss ROI": [f"{config.criterion_roi}"],
+        "Loss Heatmap": [f"{config.criterion_heatmap}"],
+        "Loss Keypoints": [f"{config.criterion_keypoints}"],
+
         # Melhores Métricas Obtidas (Baseadas na Época Selecionada)
         "Best Epoch": [best_epoch_data["epoch"]],
         "Final Val Loss Total": [best_epoch_data["val_loss"]],
@@ -55,11 +58,11 @@ def att_test_control(val_type: str,
         "Best ROI Val Loss": [best_epoch_data["val_components"]["roi"]],
         "Best Heatmap Val Loss": [best_epoch_data["val_components"]["heatmap"]],
         "Best Penalty Val Loss": [best_epoch_data["val_components"]["penalty"]],
-        
+
         # Rastreabilidade
         "Caminho Checkpoint": [os.path.abspath(config.checkpoint_dir)]
     }
-    
+
     test_control_path = r"data\\model_weights\\test_control.xlsx"
     dfNewTest = pd.DataFrame(excel_row_data)
     if os.path.exists(test_control_path):
@@ -69,4 +72,4 @@ def att_test_control(val_type: str,
         dfTestControl = dfNewTest
     dfTestControl.to_excel(test_control_path, index=False)
 
-    return 
+    return

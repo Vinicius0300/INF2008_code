@@ -19,7 +19,8 @@ def validate(
     loss_components = {
         'roi': torch.tensor(0.0, device=config.device),
         'heatmap': torch.tensor(0.0, device=config.device),
-        'penalty': torch.tensor(0.0, device=config.device)
+        'penalty': torch.tensor(0.0, device=config.device),
+        'keypoints': torch.tensor(0.0, device = config.device)
     }
 
     with torch.no_grad():

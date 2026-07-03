@@ -32,6 +32,9 @@ def holdout(
         'best_loss': float('inf')
     }
 
+    # Garante que tem lugar para salvar os checkpoints de treino:
+    config.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
     # Salvando configurações para criação/treinamento do modelo
     with open(os.path.join(config.checkpoint_dir,'config.pkl'), 'wb') as f:
         pickle.dump(config, f)
@@ -61,6 +64,8 @@ def holdout(
     model = config.model_class(**model_kwargs)
     model.apply(init_weights)
     model.to(config.device)
+
+    
 
     # Treina fold
     model, history = train_one_fold(
@@ -98,7 +103,7 @@ def holdout(
     print(f"{'='*50}")
     print(f"Média dos Folds: {results['mean_loss']:.4f} ± {results['std_loss']:.4f}")
     print(f"Melhor Fold: {results['best_fold']} (Loss: {results['best_loss']:.4f})")
-    
+
     # Salva resultados
     results_path = config.checkpoint_dir / "metrics_results.json"
     with open(results_path, 'w') as f:

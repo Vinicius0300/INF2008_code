@@ -97,4 +97,3 @@ class TrainingConfig:
         # Checkpoint dos Modelos
         self.checkpoint_dir = f"data\\model_weights\\{self.model_name}"
         self.checkpoint_dir = Path(self.checkpoint_dir)
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
