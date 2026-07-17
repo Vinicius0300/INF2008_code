@@ -32,7 +32,7 @@ class TrainingConfig:
     learning_rate: float = 3e-4
     batch_size: int = 8
     patience: int = 5
-    lr_patience: float = 1e-10
+    lr_patience: float|None = 1e-10
     optimizer: Callable = torch.optim.Adam
     optimizer_kwargs: dict = field(default_factory=dict)
     scheduler: Callable = torch.optim.lr_scheduler.ReduceLROnPlateau
@@ -72,7 +72,7 @@ class TrainingConfig:
     def __post_init__(self):
 
         # Instancia uma nova loss por Config — evita compartilhamento de estado
-        self.criterion_roi       = self.criterion_roi      if self.criterion_roi      is not None else nn.BCELoss()
+        self.criterion_roi       = self.criterion_roi      if self.criterion_roi      is not None else nn.BCEWithLogitsLoss()
         self.criterion_heatmap   = self.criterion_heatmap  if self.criterion_heatmap  is not None else nn.MSELoss()
         self.criterion_keypoints = self.criterion_keypoints  if self.criterion_keypoints  is not None else nn.MSELoss()
 

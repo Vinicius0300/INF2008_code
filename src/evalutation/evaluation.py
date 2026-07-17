@@ -74,7 +74,7 @@ class TestEvaluator:
     ) -> Dict:
         """Avalia modelo no conjunto de teste"""
 
-        num_keypoints = self.model_kwargs['num_keypoints']
+        num_keypoints = self.model_kwargs['num_keypoints'] if 'num_keypoints' in self.model_kwargs else 2
 
         results = {
             'keypoint_distances': [[] for _ in range(num_keypoints)],
@@ -114,7 +114,7 @@ class TestEvaluator:
                 pred_keypoints = pred_keypoints.squeeze(0)
 
             # Extrai pontos
-            gt_points = gt_keypoints
+            gt_points = self.extract_keypoints_from_heatmap(gt_heatmap).to(self.device)
             if pred_keypoints is not None:
                 pred_points = pred_keypoints
             elif pred_heatmap is not None:

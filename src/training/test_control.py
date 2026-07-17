@@ -10,7 +10,7 @@ def att_test_control(val_type: str,
                      history: list[dict],
                      config: TrainingConfig):
     """Atualiza excel com os testes feitos.
-    
+
     Args:
     val_type (str): Tipo de validação usada (Holdout ou Fold-{k}; k é o número do fold considerado)
     df_train (pd.DataFrame): Conjunto de treino usado

@@ -65,8 +65,6 @@ def holdout(
     model.apply(init_weights)
     model.to(config.device)
 
-    
-
     # Treina fold
     model, history = train_one_fold(
         model,

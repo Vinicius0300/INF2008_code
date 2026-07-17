@@ -1,3 +1,4 @@
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -73,7 +74,7 @@ def train_one_fold(
               f"Penalty: {val_components['penalty']:.4f}")
 
         # Scheduler Early Stopping (Learning Rate)
-        if optimizer.param_groups[0]["lr"] <= config.lr_patience:
+        if pd.notna(config.lr_patience) and optimizer.param_groups[0]["lr"] <= config.lr_patience:
             print("LR mínima atingida, parando.")
             break
 
@@ -88,7 +89,7 @@ def train_one_fold(
             patience_counter = 0
         else:
             patience_counter += 1
-            if patience_counter >= config.patience:
+            if pd.notna(config.patience) and (patience_counter >= config.patience):
                 print(f"Early stopping ativado na época {epoch+1}")
                 break
 

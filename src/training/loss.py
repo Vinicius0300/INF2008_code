@@ -79,8 +79,7 @@ class LossCalculator:
         if pred_keypoints is None:
             loss_keypoints = torch.tensor(0.0, device = gt_keypoints.device)
         else:
-            loss_keypoints = self.criterion_keypoints(pred_keypoints, gt_keypoints)
-
+            loss_keypoints = self.criterion_keypoints(pred_keypoints/self.config.output_dim[0], gt_keypoints/self.config.output_dim[0])
 
         loss_total = (
             self.config.weight_keypoints * loss_keypoints +
