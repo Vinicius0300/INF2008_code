@@ -11,7 +11,7 @@ def generate_roi_from_points(points, img_height, img_width):
         - largura = 2 * 0.7 distância entre os pontos
         - altura  = 2 * 0.7 distância entre os pontos
     E conterá os dois pontos.
-    
+
     Retorna: (x_min, y_min, x_max, y_max)
     """
     x1, y1 = points[0]
@@ -25,7 +25,7 @@ def generate_roi_from_points(points, img_height, img_width):
     cy = (y1 + y2) / 2.0
 
     # Metade das dimensões da ROI
-    half_w = dist * 0.7 
+    half_w = dist * 0.7
     half_h = dist * 0.7 # altura = 2 * dist → metade é dist
 
     # Coordenadas da ROI
@@ -42,7 +42,7 @@ def generate_roi_from_points(points, img_height, img_width):
 
     # Cria a máscara direto no PyTorch (fundo preto)
     roi_mask = torch.zeros((1, img_height, img_width), dtype=torch.float32)
-    
+
     # Pinta a ROI (retângulo branco) apenas indexando a matriz
     roi_mask[0, y_min:y_max, x_min:x_max] = 1.0
 

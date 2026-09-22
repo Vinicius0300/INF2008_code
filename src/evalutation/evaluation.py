@@ -441,7 +441,8 @@ class TestEvaluator:
                                s=100, linewidths=2)
                 ax_pred.set_title('Heatmap + ROI Predita')
                 ax_pred.axis('off')
-                plt.colorbar(im, ax=ax_pred, fraction=0.046)
+                if im:
+                    plt.colorbar(im, ax=ax_pred, fraction=0.046)
 
             plt.tight_layout()
 

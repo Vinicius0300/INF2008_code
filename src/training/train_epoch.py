@@ -25,7 +25,8 @@ def train_one_epoch(
     running_loss = torch.tensor(0.0, device=config.device)
     loss_components = {'roi': torch.tensor(0.0, device=config.device),
                        'heatmap': torch.tensor(0.0, device=config.device),
-                       'penalty': torch.tensor(0.0, device=config.device)}
+                       'penalty': torch.tensor(0.0, device=config.device),
+                       'keypoints': torch.tensor(0.0, device=config.device)}
 
     # Zero grad no início
     optimizer.zero_grad(set_to_none=True)
@@ -76,11 +77,13 @@ def train_one_epoch(
         # Atualizar pesos a cada N steps
         if (batch_idx + 1) % accumulation_steps == 0:
             if scaler is not None:
+                scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            if scaler is not None:
                 scaler.step(optimizer)
                 scaler.update()
             else:
                 optimizer.step()
-
             optimizer.zero_grad()
 
     # Apenas se houver gradientes não processados - últimos gradientes calculados

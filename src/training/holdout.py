@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from typing import Dict, List, Tuple, Callable
 import pickle
 import albumentations as A
+import torch.nn as nn
 
 from src.training.config import TrainingConfig
 from src.training.loss import LossCalculator
@@ -21,7 +22,7 @@ def holdout(
     df_train: pd.DataFrame,
     df_val: pd.DataFrame,
     config: TrainingConfig,
-) -> Dict:
+) -> Tuple[Dict, nn.Module]:
     """Executa Treinamento padrão (conjunto de treino e conjunto de validação)"""
 
     model_kwargs = config.model_kwargs or {}
@@ -117,4 +118,4 @@ def holdout(
     # Salva o teste feito no Controle de Testes
     att_test_control("Holdout", df_train, history, config)
 
-    return results
+    return results, model
