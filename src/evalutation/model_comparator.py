@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 
 from src.evalutation.inference import evaluate_model_on_test
+from src.evalutation.two_stage_inference import evaluate_two_stage
 
 class ModelComparator:
     def __init__(self, dict_config):
@@ -17,15 +18,40 @@ class ModelComparator:
     def _load_results(self):
         for model in self.dict_config:
             config = self.dict_config[model]
-            root = config.checkpoint_dir
-            pattern = re.compile(r"fold_([1-9])_best\.pth$")
-            if os.path.exists(root):
-                for filename in os.listdir(root):
-                    match = pattern.search(filename)
-                    if match:
-                        checkpoint_path = os.path.join(root, filename)
-                        results = evaluate_model_on_test(config, checkpoint_path, metric_path, "", False)
-                        self.results[checkpoint_path] = results
+
+            # Two-stage: value is a tuple (config_stage1, config_stage2)
+            if isinstance(config, tuple):
+                config_stage1, config_stage2 = config
+                root = config_stage1.checkpoint_dir
+                pattern = re.compile(r"fold_([1-9])_best\.pth$")
+                if os.path.exists(root):
+                    for filename in os.listdir(root):
+                        match = pattern.search(filename)
+                        if match:
+                            fold = match.group(1)
+                            checkpoint_stage1 = os.path.join(root, filename)
+                            # Stage 2 checkpoint uses same fold number
+                            stage2_filename = f"fold_{fold}_best.pth"
+                            checkpoint_stage2 = os.path.join(config_stage2.checkpoint_dir, stage2_filename)
+                            if os.path.exists(checkpoint_stage2):
+                                results = evaluate_two_stage(
+                                    config_stage1, config_stage2,
+                                    checkpoint_stage1, checkpoint_stage2,
+                                    output_dir="", show_results=False
+                                )
+                                self.results[checkpoint_stage1] = results
+            else:
+                # Single-stage model
+                root = config.checkpoint_dir
+                pattern = re.compile(r"fold_([1-9])_best\.pth$")
+                if os.path.exists(root):
+                    for filename in os.listdir(root):
+                        match = pattern.search(filename)
+                        if match:
+                            checkpoint_path = os.path.join(root, filename)
+                            metrics_path = os.path.join(root, "metrics_results.json")
+                            results = evaluate_model_on_test(config, checkpoint_path, metrics_path, False)
+                            self.results[checkpoint_path] = results
 
     def calculate_metrics(self):
         rows = []
@@ -36,7 +62,7 @@ class ModelComparator:
             row["mean_distance_C2"] = self.results[model]["keypoint_distances"][0].mean()
             row["median_distance_C2"] = np.median(self.results[model]["keypoint_distances"][0])
             row["mean_distance_C4"] = self.results[model]["keypoint_distances"][1].mean()
-            row["median_distance_C2"] = np.median(self.results[model]["keypoint_distances"][1])
+            row["median_distance_C4"] = np.median(self.results[model]["keypoint_distances"][1])  # fixed: was C2
 
             # Loss Heatmap
             row["mean_heatmap_loss"] = self.results[model]["heatmap_losses"].mean()
@@ -171,7 +197,15 @@ class ModelComparator:
 
     @staticmethod
     def format_model_label(path):
-        # Limpar e quebrar o caminho
+        # Detecta modelos dois estágios pelo nome do arquivo de checkpoint Stage 1
+        normalized = path.replace('\\', '/')
+        if 'GlobalStageWrapper' in normalized or 'LocalStageWrapper' in normalized or 'TwoStage' in normalized:
+            # Extrai fold do nome do arquivo
+            match = re.search(r'fold_(\d+)_best', normalized)
+            fold_str = f" - Fold {match.group(1)}" if match else ""
+            return f"Architecture: Two-Stage ResNet\nLoss: —\nModel Details: Dois Estágios{fold_str}\n"
+
+        # Limpar e quebrar o caminho (modelo single-stage)
         clean_path = path.replace('data\\model_weights\\', '').replace('.pth', '')
         parts = clean_path.split('\\')
 
