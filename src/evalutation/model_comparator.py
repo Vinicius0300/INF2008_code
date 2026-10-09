@@ -48,9 +48,13 @@ class ModelComparator:
                     for filename in os.listdir(root):
                         match = pattern.search(filename)
                         if match:
+                            fold = match.group(1)
                             checkpoint_path = os.path.join(root, filename)
                             metrics_path = os.path.join(root, "metrics_results.json")
-                            results = evaluate_model_on_test(config, checkpoint_path, metrics_path, False)
+                            results = evaluate_model_on_test(
+                                config, checkpoint_path, metrics_path,
+                                fold_number = fold, output_dir="", show_results = False
+                            )
                             self.results[checkpoint_path] = results
 
     def calculate_metrics(self):
