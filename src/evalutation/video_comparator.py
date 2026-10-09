@@ -24,8 +24,6 @@ from src.models.models_artigos.resnet_point.two_stage_resnet import compute_crop
 # ---------------------------------------------------------------------------
 # Constantes
 # ---------------------------------------------------------------------------
-_IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
-_IMAGENET_STD  = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
 
 _COLORS = [
     '#E63946', '#457B9D', '#2DC653', '#FF9F1C', '#9B5DE5',
@@ -38,29 +36,52 @@ _KP_LABELS = ['C2', 'C4']
 # Helpers de pré-processamento e extração de keypoints
 # ---------------------------------------------------------------------------
 
-def _bgr_frame_to_tensor(frame_bgr: np.ndarray, out_h: int, out_w: int) -> torch.Tensor:
+def _frame_to_gray_tensor(frame_bgr: np.ndarray, out_h: int, out_w: int,
+                          transform=None) -> torch.Tensor:
     """
-    frame_bgr  : (H, W, 3) uint8 BGR
-    Retorno    : (C, out_h, out_w) float32 em [0, 1] — SEM normalização,
-                 para que modify_input_fn (CLAHE + norm) possa ser aplicado depois.
+    Replica o pré-processamento do VFSSImageDataset:
+      BGR -> escala de cinza (H, W, 1) -> transform_validation (se houver)
+      -> resize para output_dim -> tensor (1, H, W) em [0, 1].
     """
-    rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-    rgb = cv2.resize(rgb, (out_w, out_h))
-    return torch.from_numpy(rgb).float().permute(2, 0, 1) / 255.0
+    gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+    gray = np.expand_dims(gray, axis=-1)                     # (H, W, 1)
+
+    if transform is not None:
+        try:
+            gray = transform(image=gray, keypoints=[])["image"]
+        except Exception:
+            gray = transform(image=gray)["image"]
+
+    if isinstance(gray, torch.Tensor):                       # ToTensorV2 -> (1, H, W)
+        t = gray.float()
+    else:
+        t = torch.from_numpy(np.ascontiguousarray(gray)).permute(2, 0, 1).float()
+
+    if t.shape[-2:] != (out_h, out_w):
+        t = F.interpolate(t.unsqueeze(0), size=(out_h, out_w),
+                          mode='bilinear', align_corners=False).squeeze(0)
+    return t / 255.0                                         # (1, H, W)
 
 
-def _extract_kp_from_heatmap(heatmap: torch.Tensor) -> list:
+def _extract_kp_from_heatmap(heatmap: torch.Tensor, roi: torch.Tensor = None) -> list:
     """
+    Mesma lógica do TestEvaluator.extract_keypoints_from_heatmap
+    (argmax por canal, opcionalmente restrito à ROI).
     heatmap : (1, K, H, W) ou (K, H, W)
-    Retorno : lista de (x, y) em espaço do heatmap (col, row)
+    Retorno : lista de (x, y)
     """
     if heatmap.dim() == 4:
         heatmap = heatmap[0]
-    K, H, W = heatmap.shape
+    mask = None
+    if roi is not None:
+        mask = (roi > 0).float().squeeze()
+        if mask.shape != heatmap.shape[-2:] or mask.sum() == 0:
+            mask = None
     pts = []
-    for k in range(K):
-        idx = heatmap[k].argmax().item()
-        row, col = divmod(idx, W)
+    for k in range(heatmap.shape[0]):
+        hk = heatmap[k] * mask.to(heatmap.device) if mask is not None else heatmap[k]
+        idx = hk.argmax().item()
+        row, col = divmod(idx, hk.shape[-1])
         pts.append((col, row))  # (x, y)
     return pts
 
@@ -151,44 +172,19 @@ class VideoComparator:
                 return od, od
         return fallback
 
-    @staticmethod
-    def _model_in_channels(model: torch.nn.Module) -> int:
-        """Retorna o número de canais esperados pela primeira Conv2d do modelo."""
-        for m in model.modules():
-            if isinstance(m, torch.nn.Conv2d):
-                return m.in_channels
-        return 3  # fallback
-
-    def _preprocess(self, frame_bgr: np.ndarray, config,
-                    model: torch.nn.Module = None) -> torch.Tensor:
+    def _preprocess(self, frame_bgr: np.ndarray, config) -> torch.Tensor:
         """
-        Frame BGR → tensor (1, C, H, W) pronto para o modelo.
-        - Se o modelo aceita > 3 canais E config tem modify_input_fn: aplica CLAHE.
-        - Caso contrário: normalização ImageNet padrão (3 canais).
-        Garante sempre saída 4D (1, C, H, W).
+        Frame BGR -> tensor (1, C, H, W), igual ao TestEvaluator:
+          img = dataset(frame)            # (1, H, W) cinza em [0,1]
+          modify_input_fn(img)            # (1, 3, H, W) [original, CLAHE, double CLAHE]
+          ou img.unsqueeze(0)             # (1, 1, H, W)
         """
         H, W = self._output_dim(config)
-        t = _bgr_frame_to_tensor(frame_bgr, H, W)           # (C, H, W) em [0,1]
-
+        t = _frame_to_gray_tensor(frame_bgr, H, W,
+                                  getattr(config, 'transform_validation', None))
         fn = getattr(config, 'modify_input_fn', None)
-        # Só usa modify_input_fn se o modelo realmente espera mais de 3 canais
-        if fn is not None and model is not None:
-            if self._model_in_channels(model) <= 3:
-                fn = None
-
-        if fn is not None:
-            t = fn(t)
-        else:
-            t = (t - _IMAGENET_MEAN) / _IMAGENET_STD
-            t = t.unsqueeze(0)                               # (1, C, H, W)
-
-        t = t.float().to(self.device)
-        # Garante exatamente 4D
-        while t.dim() > 4:
-            t = t.squeeze(0)
-        if t.dim() == 3:
-            t = t.unsqueeze(0)
-        return t
+        t = fn(t) if fn is not None else t.unsqueeze(0)
+        return t.float().to(self.device)
 
     # ------------------------------------------------------------------ #
     #  Inferência single-stage                                            #
@@ -204,14 +200,20 @@ class VideoComparator:
             for frame in self.frames:
                 fh, fw = frame.shape[:2]
                 t0     = time.perf_counter()
-                inp    = self._preprocess(frame, config, model)
+                inp    = self._preprocess(frame, config)
                 out    = model(inp)
 
-                # Tenta extrair heatmap:
-                # UNet/HRNet → tensor (1, K, H, W)
-                # Outros     → tuple/list: primeiro elemento
-                hm = out[0] if isinstance(out, (tuple, list)) else out
-                pts_model = _extract_kp_from_heatmap(hm)
+                # Modelos retornam (pred_roi, pred_heatmap, pred_keypoints)
+                if isinstance(out, (tuple, list)) and len(out) == 3:
+                    pred_roi, pred_hm, pred_kp = out
+                else:
+                    pred_roi, pred_hm, pred_kp = None, out, None
+
+                if pred_kp is not None:
+                    kp = pred_kp.squeeze(0).cpu()
+                    pts_model = [(float(kp[k, 0]), float(kp[k, 1])) for k in range(kp.shape[0])]
+                else:
+                    pts_model = _extract_kp_from_heatmap(pred_hm, pred_roi)
                 pts_frame = _scale_pts_to_frame(pts_model, W, H, fw, fh)
                 t1 = time.perf_counter()
 
@@ -250,7 +252,7 @@ class VideoComparator:
                 t0     = time.perf_counter()
 
                 # ---- Stage 1 ----
-                inp1          = self._preprocess(frame, config_s1, model_s1)
+                inp1          = self._preprocess(frame, config_s1)
                 _, _, pts_s1  = model_s1(inp1)          # (1, K, 2) em W1×H1
 
                 crop_box = compute_crop_box(pts_s1, W1)  # (1, 4) [x1,y1,x2,y2]
