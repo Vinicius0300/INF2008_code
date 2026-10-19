@@ -9,6 +9,7 @@ import importlib.util
 import os
 import subprocess
 import sys
+import tempfile
 import time
 
 
@@ -19,6 +20,9 @@ def launch_viewer(video_path, list_models_single_stage=(), list_models_two_stage
 
     Aguarda `check_seconds` s: se o processo terminar nesse intervalo
     (erro de import, caminho errado etc.), mostra o log no notebook.
+
+    log_path : None (padrão) -> log na pasta temporária do sistema, fora do projeto.
+               Um caminho     -> log gravado nesse arquivo.
     """
     if importlib.util.find_spec('PySide6') is None:
         print("PySide6 não está instalado neste ambiente. Rode:  %pip install PySide6==6.11.2")
@@ -36,6 +40,8 @@ def launch_viewer(video_path, list_models_single_stage=(), list_models_two_stage
     if device:
         cmd += ['--device', device]
 
+    if not log_path:
+        log_path = os.path.join(tempfile.gettempdir(), 'video_viewer.log')
     log_path = os.path.abspath(log_path)
     log = open(log_path, 'w', encoding='utf-8')
     log.write('Comando: ' + ' '.join(f'"{c}"' for c in cmd) + '\n\n')
